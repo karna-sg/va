@@ -162,7 +162,7 @@ class ElevenLabsTTS:
 
             async with websockets.connect(
                 url,
-                extra_headers={"xi-api-key": self.api_key}
+                additional_headers={"xi-api-key": self.api_key}
             ) as ws:
                 # Send initial config
                 await ws.send(json.dumps({
@@ -243,7 +243,7 @@ class ElevenLabsTTS:
 
             async with websockets.connect(
                 url,
-                extra_headers={"xi-api-key": self.api_key}
+                additional_headers={"xi-api-key": self.api_key}
             ) as ws:
                 # Send initial config
                 await ws.send(json.dumps({

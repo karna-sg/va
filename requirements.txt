@@ -6,9 +6,11 @@ numpy>=1.24.0
 openai-whisper>=20231117
 # or use whisper-cpp for faster inference
 
+# Text-to-Speech (ElevenLabs streaming)
+websockets>=12.0
+
 # Utilities
 python-dotenv>=1.0.0
 
-# Future enhancements (Phase 2)
+# Future enhancements (Phase 3)
 # deepgram-sdk>=3.0.0
-# elevenlabs>=1.0.0

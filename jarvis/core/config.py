@@ -33,9 +33,14 @@ class AudioConfig:
     silence_duration: float = 1.0  # Reduced from 1.5s to 1.0s for faster detection
     max_recording_duration: float = 30.0  # seconds
 
-    # TTS settings
+    # TTS settings (macOS fallback)
     tts_voice: str = "Samantha"
     tts_rate: int = 210  # Slightly faster speech rate
+
+    # ElevenLabs TTS settings (streaming, low latency)
+    use_elevenlabs: bool = True  # Use ElevenLabs if API key available
+    elevenlabs_voice: str = "george"  # Warm British male voice
+    elevenlabs_model: str = "eleven_turbo_v2_5"  # Fast model ~250ms
 
 
 @dataclass

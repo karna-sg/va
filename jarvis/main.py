@@ -27,6 +27,7 @@ from jarvis.audio.output import AudioOutput
 from jarvis.audio.vad import VoiceActivityDetector
 from jarvis.speech.stt import SpeechToText
 from jarvis.speech.corrections import correct_transcription
+from jarvis.speech.tts_elevenlabs import ElevenLabsTTS, ElevenLabsTTSFallback, get_tts
 from jarvis.llm.claude import ClaudeCode, PermissionMode
 from jarvis.core.state import StateManager, AgentState, create_phase1_state_machine
 from jarvis.core.config import Config, get_config
@@ -56,10 +57,31 @@ class JarvisAgent:
             device_index=config.audio.device_index,
         )
 
+        # Initialize audio output for sounds (always macOS)
         self.audio_output = AudioOutput(
             voice=config.audio.tts_voice,
             rate=config.audio.tts_rate,
         )
+
+        # Initialize TTS (ElevenLabs if available, else macOS fallback)
+        self.tts = None
+        if config.audio.use_elevenlabs:
+            try:
+                self.tts = ElevenLabsTTS(
+                    voice_id=config.audio.elevenlabs_voice,
+                    model_id=config.audio.elevenlabs_model,
+                )
+                print(f"  TTS: ElevenLabs ({config.audio.elevenlabs_voice})")
+            except Exception as e:
+                print(f"  ElevenLabs unavailable: {e}")
+
+        if self.tts is None:
+            # Fallback to macOS say command
+            self.tts = ElevenLabsTTSFallback(
+                voice=config.audio.tts_voice,
+                rate=config.audio.tts_rate,
+            )
+            print(f"  TTS: macOS ({config.audio.tts_voice})")
 
         self.vad = VoiceActivityDetector(
             sample_rate=config.audio.sample_rate,
@@ -375,8 +397,10 @@ class JarvisAgent:
         if not text:
             return ""
 
-        # Clean the text first
-        cleaned = self.audio_output._clean_text_for_speech(text)
+        # Clean the text first using speech buffer's cleaner
+        from jarvis.core.speech_buffer import SpeechBuffer
+        buffer = SpeechBuffer()
+        cleaned = buffer._clean_for_speech(text)
         if not cleaned:
             return ""
 
@@ -432,7 +456,7 @@ class JarvisAgent:
             print(f"🤖 {ack}")
 
             # Speak acknowledgment (fast, non-blocking feel)
-            await self.audio_output.speak(ack, max_length=50)
+            await self.tts.speak(ack)
 
             # 3. Check conversation state
             is_new = not self.state_manager.context.is_active
@@ -466,7 +490,7 @@ class JarvisAgent:
                 if speech_buffer._total_spoken < max_spoken:
                     speakable = speech_buffer.get_speakable()
                     if speakable:
-                        await self.audio_output.speak(speakable, max_length=150)
+                        await self.tts.speak(speakable)
 
             print()  # Newline after streaming
 
@@ -474,7 +498,7 @@ class JarvisAgent:
             if speech_buffer._total_spoken < max_spoken:
                 remaining = speech_buffer.flush()
                 if remaining:
-                    await self.audio_output.speak(remaining, max_length=150)
+                    await self.tts.speak(remaining)
 
             # 6. GUARANTEE voice output - if nothing was spoken, speak summary
             if not speech_buffer.has_spoken() and full_text:
@@ -482,12 +506,13 @@ class JarvisAgent:
                 fallback = self._extract_first_sentence(full_text)
                 if fallback:
                     print(f"(Speaking summary)")
-                    await self.audio_output.speak(fallback, max_length=200)
+                    await self.tts.speak(fallback)
 
             # Update context
             self.state_manager.context.session_id = self.claude.session_id
             self.state_manager.context.add_turn(user_input, full_text)
 
+            # Play done sound
             await self.audio_output.play_done_sound()
 
             # Check if response asks a question
@@ -563,9 +588,14 @@ class JarvisAgent:
         self._running = False
 
         # Interrupt any ongoing speech
+        await self.tts.interrupt()
         await self.audio_output.interrupt()
 
-        # Clean up audio
+        # Clean up TTS
+        if hasattr(self.tts, 'cleanup'):
+            self.tts.cleanup()
+
+        # Clean up audio input
         self.audio_input.cleanup()
 
         print("Goodbye!")

@@ -29,11 +29,14 @@ WORD_CORRECTIONS = {
     "p r": "pull request",
 
     # Assistant name
-    "jarrus": "jarvis",
-    "jarvas": "jarvis",
-    "jarves": "jarvis",
-    "service": "jarvis",
-    "hey jarvis": "jarvis",
+    "jarrus": "kat",
+    "jarvas": "kat",
+    "jarves": "kat",
+    "cat": "kat",
+    "cot": "kat",
+    "hat": "kat",
+    "hey cat": "kat",
+    "hey kat": "kat",
 
     # Common commands
     "summit": "commit",

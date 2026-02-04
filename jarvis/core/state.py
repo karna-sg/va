@@ -22,7 +22,9 @@ class AgentState(Enum):
     IDLE = auto()           # Waiting for user input (keyboard trigger)
     LISTENING = auto()      # Recording user speech
     PROCESSING_STT = auto() # Converting speech to text
+    ROUTING = auto()        # Intent routing (Tier 1/2/3 decision)
     PROCESSING_LLM = auto() # Claude is thinking
+    EXECUTING_WORKFLOW = auto()  # Running a multi-step workflow
     SPEAKING = auto()       # TTS is playing response
     WAITING_FOLLOWUP = auto()  # Waiting for potential follow-up
 
@@ -99,12 +101,14 @@ class StateManager:
     ERROR -> IDLE (on: recovery)
     """
 
-    # Valid state transitions - more flexible to handle various flows
+    # Valid state transitions - flexible to handle various flows
     TRANSITIONS = {
-        AgentState.IDLE: [AgentState.IDLE, AgentState.LISTENING, AgentState.PROCESSING_LLM, AgentState.ERROR],
-        AgentState.LISTENING: [AgentState.LISTENING, AgentState.PROCESSING_STT, AgentState.PROCESSING_LLM, AgentState.SPEAKING, AgentState.IDLE, AgentState.ERROR],
-        AgentState.PROCESSING_STT: [AgentState.PROCESSING_LLM, AgentState.SPEAKING, AgentState.IDLE, AgentState.ERROR],
-        AgentState.PROCESSING_LLM: [AgentState.SPEAKING, AgentState.LISTENING, AgentState.IDLE, AgentState.ERROR],
+        AgentState.IDLE: [AgentState.IDLE, AgentState.LISTENING, AgentState.ROUTING, AgentState.PROCESSING_LLM, AgentState.ERROR],
+        AgentState.LISTENING: [AgentState.LISTENING, AgentState.PROCESSING_STT, AgentState.ROUTING, AgentState.PROCESSING_LLM, AgentState.SPEAKING, AgentState.IDLE, AgentState.ERROR],
+        AgentState.PROCESSING_STT: [AgentState.ROUTING, AgentState.PROCESSING_LLM, AgentState.SPEAKING, AgentState.IDLE, AgentState.ERROR],
+        AgentState.ROUTING: [AgentState.PROCESSING_LLM, AgentState.EXECUTING_WORKFLOW, AgentState.SPEAKING, AgentState.IDLE, AgentState.ERROR],
+        AgentState.PROCESSING_LLM: [AgentState.SPEAKING, AgentState.EXECUTING_WORKFLOW, AgentState.LISTENING, AgentState.IDLE, AgentState.ERROR],
+        AgentState.EXECUTING_WORKFLOW: [AgentState.SPEAKING, AgentState.PROCESSING_LLM, AgentState.IDLE, AgentState.ERROR],
         AgentState.SPEAKING: [AgentState.WAITING_FOLLOWUP, AgentState.LISTENING, AgentState.PROCESSING_LLM, AgentState.IDLE, AgentState.ERROR],
         AgentState.WAITING_FOLLOWUP: [AgentState.LISTENING, AgentState.IDLE, AgentState.ERROR],
         AgentState.ERROR: [AgentState.IDLE, AgentState.LISTENING],

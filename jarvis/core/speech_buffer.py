@@ -231,7 +231,7 @@ if __name__ == "__main__":
         "show me open issues",
         "implement issue 5",
         "fix the bug in login",
-        "hello jarvis",
+        "hello kat",
     ]
 
     print("Testing acknowledgments:")

@@ -231,6 +231,7 @@ class ClaudeCode:
         message: str,
         new_conversation: bool = False,
         system_prompt: Optional[str] = None,
+        model: Optional[str] = None,
     ) -> ClaudeResponse:
         """
         Send a message to Claude Code and get response.
@@ -239,6 +240,7 @@ class ClaudeCode:
             message: The user message to send
             new_conversation: If True, start a new conversation
             system_prompt: Optional system prompt for context
+            model: Override model selection (e.g. 'haiku' for fast queries)
 
         Returns:
             ClaudeResponse with result
@@ -247,8 +249,9 @@ class ClaudeCode:
             self._session_id = None
             self._conversation_turns = 0
 
-        # Always select model based on query complexity (even for follow-ups)
-        model = self._get_model_for_query(message)
+        # Use explicit model if provided, otherwise auto-classify
+        if not model:
+            model = self._get_model_for_query(message)
 
         # Build command with system prompt for new conversations
         cmd = self._build_command(

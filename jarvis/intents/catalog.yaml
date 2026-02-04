@@ -1,0 +1,546 @@
+# Kat Intent Catalog
+# ~100 canonical phrases mapped to intents for Tier 1 FAISS routing.
+# Each intent has:
+#   - description: what it does
+#   - phrases: canonical utterances (5-10 each)
+#   - params: default parameters (${var} = resolved at runtime)
+#   - tool: MCP server name (or "local" for non-MCP)
+#   - action: tool/function to call
+#   - response_template: TTS-friendly response format
+#   - model: which Claude model to use if falling through to CLI
+
+intents:
+
+  # ---------------------------------------------------------------------------
+  # GitHub - Issues
+  # ---------------------------------------------------------------------------
+  github.list_issues:
+    description: "List open GitHub issues"
+    phrases:
+      - "show me open issues"
+      - "list issues"
+      - "what issues do we have"
+      - "show github issues"
+      - "any open issues"
+      - "check issues"
+      - "what are the current issues"
+      - "open issues on github"
+      - "issues list"
+      - "show my issues"
+      - "list all open issues"
+      - "list out all open issues"
+      - "show all issues"
+    params:
+      repo: "${default_repo}"
+      state: "open"
+    tool: "github"
+    action: "list_issues"
+    response_template: "You have {count} open issues."
+    model: "fast"
+
+  github.get_issue:
+    description: "Get details of a specific issue"
+    phrases:
+      - "show issue {number}"
+      - "get issue {number}"
+      - "what is issue {number}"
+      - "tell me about issue {number}"
+      - "issue {number} details"
+      - "describe issue {number}"
+      - "read issue {number}"
+      - "open issue {number}"
+    params:
+      repo: "${default_repo}"
+    tool: "github"
+    action: "get_issue"
+    response_template: "Issue {number} is about {title}."
+    model: "fast"
+
+  github.create_issue:
+    description: "Create a new GitHub issue"
+    phrases:
+      - "create an issue"
+      - "new issue"
+      - "make an issue"
+      - "open a new issue"
+      - "file an issue"
+      - "create a ticket"
+      - "add an issue"
+    params:
+      repo: "${default_repo}"
+    tool: "github"
+    action: "create_issue"
+    response_template: "Created issue {number}: {title}."
+    model: "smart"
+
+  # ---------------------------------------------------------------------------
+  # GitHub - Pull Requests
+  # ---------------------------------------------------------------------------
+  github.list_prs:
+    description: "List pull requests"
+    phrases:
+      - "show pull requests"
+      - "list PRs"
+      - "open PRs"
+      - "any pull requests"
+      - "show me PRs"
+      - "pending pull requests"
+      - "what PRs are open"
+      - "check pull requests"
+    params:
+      repo: "${default_repo}"
+      state: "open"
+    tool: "github"
+    action: "list_pull_requests"
+    response_template: "You have {count} open pull requests."
+    model: "fast"
+
+  github.get_pr:
+    description: "Get details of a specific PR"
+    phrases:
+      - "show PR {number}"
+      - "get pull request {number}"
+      - "what is PR {number}"
+      - "PR {number} details"
+      - "describe PR {number}"
+      - "review PR {number}"
+    params:
+      repo: "${default_repo}"
+    tool: "github"
+    action: "get_pull_request"
+    response_template: "PR {number}: {title}."
+    model: "fast"
+
+  # ---------------------------------------------------------------------------
+  # GitHub - Commits & Activity
+  # ---------------------------------------------------------------------------
+  github.list_commits:
+    description: "Show recent commits"
+    phrases:
+      - "show recent commits"
+      - "what did we commit"
+      - "git log"
+      - "recent commits"
+      - "latest commits"
+      - "show commits"
+      - "what was committed"
+      - "commit history"
+      - "last few commits"
+    params:
+      repo: "${default_repo}"
+    tool: "github"
+    action: "list_commits"
+    response_template: "Here are the recent commits."
+    model: "fast"
+
+  github.activity_yesterday:
+    description: "Show what was done yesterday"
+    phrases:
+      - "what did we do yesterday"
+      - "yesterday's activity"
+      - "show yesterday's work"
+      - "what happened yesterday"
+      - "yesterday's commits"
+      - "what was done yesterday"
+      - "summarize yesterday"
+      - "what did we work on yesterday"
+      - "what work was done yesterday"
+    params:
+      repo: "${default_repo}"
+      since: "yesterday"
+    tool: "github"
+    action: "list_commits"
+    response_template: "Yesterday we had {count} commits."
+    model: "smart"
+
+  github.activity_today:
+    description: "Show what was done today"
+    phrases:
+      - "what did we do today"
+      - "today's activity"
+      - "show today's work"
+      - "what happened today"
+      - "today's commits"
+      - "what was done today"
+    params:
+      repo: "${default_repo}"
+      since: "today"
+    tool: "github"
+    action: "list_commits"
+    response_template: "Today we had {count} commits."
+    model: "smart"
+
+  github.activity_this_week:
+    description: "Show this week's activity"
+    phrases:
+      - "what did we do this week"
+      - "this week's activity"
+      - "weekly summary"
+      - "show this week's work"
+      - "what happened this week"
+      - "week in review"
+    params:
+      repo: "${default_repo}"
+      since: "last_week"
+    tool: "github"
+    action: "list_commits"
+    response_template: "This week we had {count} commits."
+    model: "smart"
+
+  # ---------------------------------------------------------------------------
+  # GitHub - Repo Info
+  # ---------------------------------------------------------------------------
+  github.repo_status:
+    description: "Get repository status overview"
+    phrases:
+      - "repo status"
+      - "repository status"
+      - "project status"
+      - "how is the repo"
+      - "project overview"
+      - "show repo info"
+    params:
+      repo: "${default_repo}"
+    tool: "github"
+    action: "get_repository"
+    response_template: "{repo} has {open_issues} open issues and {open_prs} open PRs."
+    model: "smart"
+
+  # ---------------------------------------------------------------------------
+  # Slack - Messaging
+  # ---------------------------------------------------------------------------
+  slack.post_message:
+    description: "Send a message on Slack"
+    phrases:
+      - "send message on slack"
+      - "post to slack"
+      - "message on slack"
+      - "send on slack"
+      - "slack message"
+      - "post a message to slack"
+      - "send this to slack"
+      - "share on slack"
+    params:
+      channel: "${default_channel}"
+    tool: "slack"
+    action: "post_message"
+    response_template: "Message posted to {channel}."
+    model: "smart"
+
+  slack.list_channels:
+    description: "List Slack channels"
+    phrases:
+      - "show slack channels"
+      - "list channels"
+      - "what channels do we have"
+      - "slack channels"
+      - "available channels"
+    params: {}
+    tool: "slack"
+    action: "list_channels"
+    response_template: "You have {count} channels."
+    model: "fast"
+
+  slack.read_messages:
+    description: "Read recent Slack messages"
+    phrases:
+      - "read slack messages"
+      - "show recent messages"
+      - "what's on slack"
+      - "check slack"
+      - "any new messages"
+      - "slack updates"
+    params:
+      channel: "${default_channel}"
+    tool: "slack"
+    action: "read_messages"
+    response_template: "Here are the recent messages."
+    model: "fast"
+
+  # ---------------------------------------------------------------------------
+  # Git - Local Operations
+  # ---------------------------------------------------------------------------
+  git.status:
+    description: "Show git status"
+    phrases:
+      - "git status"
+      - "show git status"
+      - "what's changed"
+      - "any changes"
+      - "uncommitted changes"
+      - "modified files"
+      - "check git status"
+    params: {}
+    tool: "local"
+    action: "git_status"
+    response_template: "{summary}"
+    model: "fast"
+
+  git.diff:
+    description: "Show git diff"
+    phrases:
+      - "show diff"
+      - "git diff"
+      - "what changed"
+      - "show changes"
+      - "code changes"
+    params: {}
+    tool: "local"
+    action: "git_diff"
+    response_template: "{summary}"
+    model: "fast"
+
+  git.branch:
+    description: "Show current branch"
+    phrases:
+      - "what branch am I on"
+      - "current branch"
+      - "show branch"
+      - "which branch"
+      - "git branch"
+    params: {}
+    tool: "local"
+    action: "git_branch"
+    response_template: "You're on branch {branch}."
+    model: "fast"
+
+  # ---------------------------------------------------------------------------
+  # Code Operations
+  # ---------------------------------------------------------------------------
+  code.implement:
+    description: "Implement a feature or fix"
+    phrases:
+      - "implement this"
+      - "build this feature"
+      - "code this up"
+      - "create the implementation"
+      - "write the code"
+      - "implement issue {number}"
+      - "work on issue {number}"
+      - "start implementing"
+    params: {}
+    tool: "claude"
+    action: "implement"
+    response_template: "Working on it."
+    model: "smart"
+
+  code.fix_bug:
+    description: "Fix a bug"
+    phrases:
+      - "fix the bug"
+      - "debug this"
+      - "fix this issue"
+      - "resolve the bug"
+      - "fix the error"
+      - "debug the problem"
+    params: {}
+    tool: "claude"
+    action: "fix_bug"
+    response_template: "On it."
+    model: "smart"
+
+  code.review:
+    description: "Review code or PR"
+    phrases:
+      - "review the code"
+      - "code review"
+      - "review this PR"
+      - "check the code"
+      - "review changes"
+      - "look at the code"
+    params: {}
+    tool: "claude"
+    action: "review"
+    response_template: "Reviewing now."
+    model: "smart"
+
+  code.explain:
+    description: "Explain code or architecture"
+    phrases:
+      - "explain this code"
+      - "what does this do"
+      - "explain the architecture"
+      - "how does this work"
+      - "walk me through this"
+      - "explain the function"
+    params: {}
+    tool: "claude"
+    action: "explain"
+    response_template: "Let me explain."
+    model: "smart"
+
+  code.refactor:
+    description: "Refactor code"
+    phrases:
+      - "refactor this"
+      - "clean up the code"
+      - "improve this code"
+      - "refactor the function"
+      - "simplify this"
+    params: {}
+    tool: "claude"
+    action: "refactor"
+    response_template: "Working on refactoring."
+    model: "smart"
+
+  # ---------------------------------------------------------------------------
+  # CLI / Build Operations
+  # ---------------------------------------------------------------------------
+  cli.run_tests:
+    description: "Run tests"
+    phrases:
+      - "run the tests"
+      - "run tests"
+      - "execute tests"
+      - "test the code"
+      - "run test suite"
+      - "check if tests pass"
+    params: {}
+    tool: "local"
+    action: "run_tests"
+    response_template: "Running tests."
+    model: "smart"
+
+  cli.run_build:
+    description: "Run build"
+    phrases:
+      - "run the build"
+      - "build the project"
+      - "compile"
+      - "run build"
+      - "build it"
+    params: {}
+    tool: "local"
+    action: "run_build"
+    response_template: "Building."
+    model: "smart"
+
+  cli.run_command:
+    description: "Run a shell command"
+    phrases:
+      - "run command"
+      - "execute command"
+      - "run this command"
+      - "terminal command"
+    params: {}
+    tool: "local"
+    action: "run_command"
+    response_template: "Running."
+    model: "smart"
+
+  # ---------------------------------------------------------------------------
+  # Workflow - Compound Commands
+  # ---------------------------------------------------------------------------
+  workflow.daily_status:
+    description: "Generate and post daily status"
+    phrases:
+      - "send our status on slack"
+      - "post daily status"
+      - "daily standup"
+      - "share status update"
+      - "send status to slack"
+      - "post our progress"
+      - "daily status report"
+      - "standup update"
+    params:
+      channel: "${default_channel}"
+    tool: "workflow"
+    action: "daily_status"
+    response_template: "Getting our status."
+    model: "smart"
+
+  workflow.pr_review:
+    description: "Fetch and review a PR"
+    phrases:
+      - "review the latest PR"
+      - "do a PR review"
+      - "review and comment on PR"
+      - "check the latest pull request"
+    params:
+      repo: "${default_repo}"
+    tool: "workflow"
+    action: "pr_review"
+    response_template: "Reviewing the PR."
+    model: "smart"
+
+  # ---------------------------------------------------------------------------
+  # Conversation / Meta
+  # ---------------------------------------------------------------------------
+  meta.greeting:
+    description: "Greeting"
+    phrases:
+      - "hello"
+      - "hey"
+      - "hi"
+      - "good morning"
+      - "good afternoon"
+      - "hey kat"
+      - "hi kat"
+      - "hello kat"
+    params: {}
+    tool: "local"
+    action: "greeting"
+    response_template: "Hey! What can I help with?"
+    model: "fast"
+
+  meta.thanks:
+    description: "Thank you"
+    phrases:
+      - "thank you"
+      - "thanks"
+      - "thanks kat"
+      - "great thanks"
+      - "awesome thanks"
+      - "perfect thank you"
+    params: {}
+    tool: "local"
+    action: "thanks"
+    response_template: "Anytime!"
+    model: "fast"
+
+  meta.help:
+    description: "Ask what Kat can do"
+    phrases:
+      - "what can you do"
+      - "help"
+      - "what are your capabilities"
+      - "show me what you can do"
+      - "how can you help"
+      - "what commands do you support"
+    params: {}
+    tool: "local"
+    action: "help"
+    response_template: "I can help with GitHub, Slack, git, code, and more. Just ask!"
+    model: "fast"
+
+  meta.cancel:
+    description: "Cancel current operation"
+    phrases:
+      - "cancel"
+      - "stop"
+      - "never mind"
+      - "forget it"
+      - "cancel that"
+      - "abort"
+    params: {}
+    tool: "local"
+    action: "cancel"
+    response_template: "Cancelled."
+    model: "fast"
+
+# ---------------------------------------------------------------------------
+# Router settings
+# ---------------------------------------------------------------------------
+settings:
+  tier1_threshold: 0.82  # Minimum cosine similarity for Tier 1 match
+  tier2_threshold: 0.70  # Below this, fall through to Claude
+  embedding_model: "all-MiniLM-L6-v2"  # ~80MB, ~5ms per embed
+  max_results: 3  # Return top-K matches
+
+# ---------------------------------------------------------------------------
+# Default parameter values (resolved at runtime)
+# ---------------------------------------------------------------------------
+defaults:
+  default_repo: "curiescious"
+  default_owner: "karna-sg"
+  default_channel: "#general"

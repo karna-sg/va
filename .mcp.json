@@ -4,6 +4,34 @@
       "type": "http",
       "url": "https://api.githubcopilot.com/mcp/",
       "description": "GitHub integration for commits, PRs, issues"
+    },
+    "slack": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-slack"],
+      "env": {
+        "SLACK_BOT_TOKEN": "${SLACK_BOT_TOKEN}",
+        "SLACK_TEAM_ID": "${SLACK_TEAM_ID}"
+      },
+      "description": "Slack integration for messaging and channels"
+    },
+    "git": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-git"],
+      "description": "Git operations (status, diff, log, branch)"
+    },
+    "filesystem": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/Users/karna/curiescious/curiescious"],
+      "description": "Filesystem access for reading/writing project files"
+    },
+    "jira": {
+      "type": "stdio",
+      "command": "uvx",
+      "args": ["mcp-atlassian", "--jira-url", "${JIRA_URL}", "--jira-personal-token", "${JIRA_PERSONAL_TOKEN}"],
+      "description": "Jira integration for issues, sprints, and project management"
     }
   }
 }

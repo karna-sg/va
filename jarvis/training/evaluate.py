@@ -1,5 +1,5 @@
 """
-Routing Accuracy Evaluation for Kat Voice Assistant
+Routing Accuracy Evaluation for Jarvis Voice Assistant
 
 Compares the fine-tuned model vs base model on intent classification:
 1. Load test utterances with known intents
@@ -8,7 +8,7 @@ Compares the fine-tuned model vs base model on intent classification:
 
 Usage:
   python -m jarvis.training.evaluate                    # Test base model
-  python -m jarvis.training.evaluate --adapter ~/.kat/adapters  # Test fine-tuned
+  python -m jarvis.training.evaluate --adapter ~/.jarvis/adapters  # Test fine-tuned
   python -m jarvis.training.evaluate --compare          # A/B comparison
 """
 
@@ -85,8 +85,8 @@ def get_test_cases() -> List[Dict[str, Any]]:
         {"utterance": "what should we prioritize for the sprint", "intent": "workflow.sprint_planning"},
 
         # Meta
-        {"utterance": "hey kat good morning", "intent": "meta.greeting"},
-        {"utterance": "cheers kat", "intent": "meta.thanks"},
+        {"utterance": "hey jarvis good morning", "intent": "meta.greeting"},
+        {"utterance": "cheers jarvis", "intent": "meta.thanks"},
         {"utterance": "what are you capable of", "intent": "meta.help"},
         {"utterance": "forget about it", "intent": "meta.cancel"},
 
@@ -244,7 +244,7 @@ def print_report(results: List[EvalResult], label: str = "Model") -> Dict[str, A
 
 
 def compare_models(model_name: str = "Qwen/Qwen3-4B-MLX-4bit",
-                    adapter_path: str = "~/.kat/adapters") -> None:
+                    adapter_path: str = "~/.jarvis/adapters") -> None:
     """Run A/B comparison between base and fine-tuned model"""
     import os
     adapter_path = os.path.expanduser(adapter_path)
@@ -289,7 +289,7 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(
-        description="Evaluate Kat voice routing accuracy")
+        description="Evaluate Jarvis voice routing accuracy")
     parser.add_argument("--adapter", type=str, default=None,
                         help="Path to LoRA adapter directory")
     parser.add_argument("--compare", action="store_true",
@@ -302,7 +302,7 @@ def main():
     if args.compare:
         compare_models(
             model_name=args.model,
-            adapter_path=args.adapter or "~/.kat/adapters",
+            adapter_path=args.adapter or "~/.jarvis/adapters",
         )
     else:
         results = evaluate_model(

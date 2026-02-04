@@ -109,13 +109,13 @@ class FastRouter:
 
     # Greeting prefixes to strip from compound utterances
     GREETING_PREFIXES = [
-        'hey kat ', 'hi kat ', 'hello kat ',
-        'hey kat, ', 'hi kat, ', 'hello kat, ',
-        'kat ', 'kat, ',
+        'hey jarvis ', 'hi jarvis ', 'hello jarvis ',
+        'hey jarvis, ', 'hi jarvis, ', 'hello jarvis, ',
+        'jarvis ', 'jarvis, ',
     ]
 
     def _strip_greeting_prefix(self, utterance: str):
-        """Strip greeting prefix from compound utterances like 'hey kat show me issues'.
+        """Strip greeting prefix from compound utterances like 'hey jarvis show me issues'.
         Returns (cleaned_utterance, had_greeting)."""
         lower = utterance.lower()
         for prefix in self.GREETING_PREFIXES:
@@ -141,7 +141,7 @@ class FastRouter:
         threshold = self._settings.get('tier1_threshold', 0.78)
 
         # Strip greeting prefix for compound utterances
-        # "hey kat show me the issues" -> search "show me the issues"
+        # "hey jarvis show me the issues" -> search "show me the issues"
         cleaned, had_greeting = self._strip_greeting_prefix(utterance)
 
         # If utterance was ONLY a greeting (nothing left), use original

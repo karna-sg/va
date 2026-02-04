@@ -17,9 +17,12 @@ import os
 import time
 from pathlib import Path
 
+import numpy as np
+
 from jarvis.audio.input import AudioInput
 from jarvis.audio.output import AudioOutput
 from jarvis.audio.vad import VoiceActivityDetector
+from jarvis.audio.wake_word import WakeWordListener
 from jarvis.speech.stt import SpeechToText
 from jarvis.speech.stt_deepgram import DeepgramSTT, DeepgramSTTFallback
 from jarvis.speech.corrections import correct_transcription
@@ -183,6 +186,20 @@ class Orchestrator:
         # --- Training Data ---
         self.training_collector = TrainingDataCollector()
 
+        # --- Wake Word Listener ---
+        self.wake_listener = None
+        self.use_wake_word = config.wake_word.enabled
+
+        if self.use_wake_word and self.deepgram_stt:
+            self.wake_listener = WakeWordListener(
+                audio_input=self.audio_input,
+                vad=self.vad,
+                deepgram_stt=self.deepgram_stt,
+                burst_duration=config.wake_word.burst_duration,
+                wake_phrases=config.wake_word.wake_phrases,
+                debug=config.debug,
+            )
+
         # --- State Machine ---
         self.state_manager = create_phase1_state_machine()
         self._setup_state_handlers()
@@ -201,7 +218,7 @@ class Orchestrator:
 
     async def initialize(self) -> bool:
         """Initialize all components"""
-        print("Initializing Kat...")
+        print("Initializing Jarvis...")
         print("  Performance mode: streaming TTS, model routing enabled")
 
         # Audio input
@@ -301,17 +318,18 @@ class Orchestrator:
             return False
         print("  Claude Code ready (%0.fms)" % response.duration_ms)
 
-        print("\nKat initialized (optimized for speed)")
+        print("\nJarvis initialized (optimized for speed)")
         return True
 
     # -------------------------------------------------------------------------
     # Voice I/O
     # -------------------------------------------------------------------------
 
-    async def listen_and_transcribe(self, prompt: str = "Listening... (speak now)") -> str:
+    async def listen_and_transcribe(self, prompt: str = "Listening... (speak now)", play_chime: bool = True) -> str:
         """Record audio and transcribe to text"""
         self.state_manager.transition_to(AgentState.LISTENING)
-        await self.audio_output.play_listening_sound()
+        if play_chime:
+            await self.audio_output.play_listening_sound()
         print(prompt)
 
         if self.use_deepgram and self.deepgram_stt:
@@ -455,12 +473,14 @@ class Orchestrator:
     # Turn Handling
     # -------------------------------------------------------------------------
 
-    async def handle_turn(self, is_followup_answer: bool = False) -> bool:
+    async def handle_turn(self, is_followup_answer: bool = False,
+                          pre_transcribed: str = None,
+                          play_chime: bool = True) -> bool:
         """
         Handle one conversation turn with 3-tier routing.
 
         Flow:
-        1. Listen and transcribe
+        1. Listen and transcribe (or use pre_transcribed text)
         2. Tier 1 routing (FAISS, <1ms) - try fast match first
         3. If Tier 1 matched:
            a. Execute directly (local response or targeted Claude call)
@@ -472,17 +492,42 @@ class Orchestrator:
         5. Update conversation + memory
         6. Handle follow-ups
 
+        Args:
+            is_followup_answer: True if answering a question from Jarvis
+            pre_transcribed: Pre-transcribed text (from wake word trailing text)
+            play_chime: Whether to play listening chime
+
         Returns:
             True if conversation should continue
         """
         try:
-            # 1. Listen and transcribe
-            prompt = "Your answer..." if is_followup_answer else "Listening..."
-            user_input = await self.listen_and_transcribe(prompt=prompt)
+            # 1. Listen and transcribe (or use pre-transcribed text)
+            if pre_transcribed:
+                user_input = correct_transcription(pre_transcribed)
+                print("You said: %s" % user_input)
+            else:
+                prompt = "Your answer..." if is_followup_answer else "Listening..."
+                user_input = await self.listen_and_transcribe(
+                    prompt=prompt, play_chime=play_chime)
             if not user_input:
                 if is_followup_answer:
                     print("No response. Ending.")
                     self.conversation.end()
+                self.state_manager.transition_to(AgentState.IDLE)
+                return False
+
+            # 1b. Fast-path: intercept stop/cancel/done before any routing
+            # Single-word commands should never go through Tier 1/2/3
+            _cancel_words = {'stop', 'cancel', 'quit', 'done', 'never mind',
+                             'nevermind', 'forget it', 'abort', 'that\'s all',
+                             'no more', 'enough', 'bye', 'goodbye', 'end'}
+            user_lower = user_input.lower().strip().rstrip('.!?,')
+            if user_lower in _cancel_words:
+                self.state_manager.transition_to(AgentState.SPEAKING)
+                cancel_msg = "Alright, cancelled."
+                print("Jarvis: %s" % cancel_msg)
+                await self.tts.speak_short(cancel_msg)
+                self.conversation.end()
                 self.state_manager.transition_to(AgentState.IDLE)
                 return False
 
@@ -576,11 +621,13 @@ class Orchestrator:
             # Done sound
             await self.audio_output.play_done_sound()
 
-            # Auto-continue if Kat asked a question
+            # Auto-continue if Jarvis asked a question
             if self._is_asking_question(full_text) and self.config.auto_continue_on_question:
-                print("\nRespond to Kat...")
+                print("\nRespond to Jarvis...")
                 await asyncio.sleep(0.5)
-                return await self.handle_turn(is_followup_answer=True)
+                return await self.handle_turn(
+                    is_followup_answer=True,
+                    play_chime=not self.use_wake_word)
 
             # Wait for follow-up
             return await self.wait_for_followup()
@@ -605,7 +652,7 @@ class Orchestrator:
         self.state_manager.transition_to(AgentState.CONFIRMING)
 
         # Speak the confirmation prompt (short text, use fast TTS)
-        print("Kat: %s" % prompt)
+        print("Jarvis: %s" % prompt)
         await self.tts.speak_short(prompt)
 
         # Listen for yes/no
@@ -672,7 +719,7 @@ class Orchestrator:
 
         # Direct execution succeeded
         self.state_manager.transition_to(AgentState.SPEAKING)
-        print("Kat: %s" % result.text)
+        print("Jarvis: %s" % result.text)
         print("[%s, %.0fms]" % (result.source, exec_ms))
         await self.tts.speak(result.spoken_text)
 
@@ -711,7 +758,7 @@ class Orchestrator:
         question = "Which %s?" % slot_name.replace('_', ' ')
 
         self.state_manager.transition_to(AgentState.SPEAKING)
-        print("Kat: %s" % question)
+        print("Jarvis: %s" % question)
         await self.tts.speak(question)
 
         # Listen for the answer
@@ -805,17 +852,17 @@ class Orchestrator:
             response_text = result.final_result or spoken_done
             if isinstance(response_text, str) and len(response_text) > 200:
                 # Summarize long results for voice
-                print("Kat: %s" % response_text)
+                print("Jarvis: %s" % response_text)
                 await self.tts.speak(spoken_done)
             else:
-                print("Kat: %s" % (response_text or spoken_done))
+                print("Jarvis: %s" % (response_text or spoken_done))
                 await self.tts.speak(str(response_text or spoken_done))
         else:
             error_msg = "Workflow failed: %s" % (result.error or "unknown error")
             if result.failed_steps:
                 failed_names = [s.name for s in result.failed_steps]
                 error_msg = "Failed at: %s" % ", ".join(failed_names)
-            print("Kat: %s" % error_msg)
+            print("Jarvis: %s" % error_msg)
             await self.tts.speak("Sorry, the workflow had an issue. %s" % error_msg)
 
         # Update conversation + memory
@@ -923,7 +970,7 @@ class Orchestrator:
             else:
                 system_prompt = self.config.claude.system_prompt
 
-        print("Kat: ", end="", flush=True)
+        print("Jarvis: ", end="", flush=True)
 
         async for chunk in self.claude.stream_text(
             user_input,
@@ -962,23 +1009,58 @@ class Orchestrator:
         return full_text
 
     async def wait_for_followup(self) -> bool:
-        """Wait for potential follow-up command"""
+        """
+        Wait for follow-up speech (Siri-like, no Enter key).
+
+        Uses VAD to detect speech onset within timeout window.
+        If wake word mode is active, returns False to go back to dormant.
+        If wake word mode is off, falls back to Enter-key.
+        """
         self.state_manager.transition_to(AgentState.WAITING_FOLLOWUP)
 
         timeout = self.config.follow_up_timeout
-        print("\n[Press Enter to continue, or wait %0.fs to end]" % timeout)
 
-        try:
-            loop = asyncio.get_event_loop()
-            await asyncio.wait_for(
-                loop.run_in_executor(None, input),
-                timeout=timeout
-            )
-            return True
-        except asyncio.TimeoutError:
-            print("\nConversation ended.")
+        if self.use_wake_word and self.wake_listener:
+            # Siri-like: auto-listen for follow-up via energy detection
+            print("\n[Listening for follow-up... %.0fs]" % timeout)
+
+            self.audio_input.start_stream()
+            start = time.time()
+
+            # Use wake listener's adaptive noise floor if calibrated
+            noise_floor = getattr(self.wake_listener, '_noise_floor', 10.0)
+            threshold = max(30.0, noise_floor * 3.0)
+
+            try:
+                while time.time() - start < timeout:
+                    chunk = await self.audio_input.read_chunk_async()
+                    array = np.frombuffer(chunk, dtype=np.int16).astype(np.float32)
+                    rms = float(np.sqrt(np.mean(array ** 2)))
+
+                    if rms > threshold:
+                        # Speech detected -> handle as follow-up turn
+                        return True
+            finally:
+                self.audio_input.stop_stream()
+
+            # Timeout - go back to dormant
+            print("Back to listening for 'Hey Jarvis'.")
             self.conversation.end()
             return False
+        else:
+            # Fallback: Enter-key mode
+            print("\n[Press Enter to continue, or wait %.0fs to end]" % timeout)
+            try:
+                loop = asyncio.get_event_loop()
+                await asyncio.wait_for(
+                    loop.run_in_executor(None, input),
+                    timeout=timeout
+                )
+                return True
+            except asyncio.TimeoutError:
+                print("\nConversation ended.")
+                self.conversation.end()
+                return False
 
     # -------------------------------------------------------------------------
     # Main Loop
@@ -989,7 +1071,7 @@ class Orchestrator:
         self._running = True
 
         print("\n" + "=" * 50)
-        print("   KAT - Smart Voice Assistant")
+        print("   JARVIS - Smart Voice Assistant")
         print("=" * 50)
         print("\nCapabilities:")
         print("  - GitHub: commits, PRs, issues")
@@ -1014,22 +1096,60 @@ class Orchestrator:
         print("\nProject directories:")
         for d in self.config.claude.project_directories:
             print("  - %s" % d)
-        print("\nPress Enter to start speaking, Ctrl+C to exit")
+        if self.use_wake_word and self.wake_listener:
+            print("\nSay 'Hey Jarvis' to start, Ctrl+C to exit")
+        else:
+            print("\nPress Enter to start speaking, Ctrl+C to exit")
         print("-" * 50)
 
         while self._running:
             try:
-                self.state_manager.transition_to(AgentState.IDLE)
+                if self.use_wake_word and self.wake_listener:
+                    # --- Always-on wake word mode ---
+                    self.state_manager.transition_to(AgentState.DORMANT, force=True)
 
-                print("\n[Press Enter to speak...]")
-                await asyncio.get_event_loop().run_in_executor(None, input)
+                    # Wait for "Hey Jarvis"
+                    result = await self.wake_listener.listen_for_wake_word()
 
-                if not self._running:
-                    break
+                    if not self._running:
+                        break
 
-                continue_conversation = True
-                while continue_conversation and self._running:
-                    continue_conversation = await self.handle_turn(is_followup_answer=False)
+                    # Wake word detected
+                    self.state_manager.transition_to(AgentState.ACTIVATED, force=True)
+                    await self.audio_output.play_activation_sound()
+
+                    if self.config.debug:
+                        print("[Wake] '%s' (%.0fms)" % (
+                            result.phrase, result.detection_time_ms))
+
+                    # Process trailing text or fresh listen
+                    if result.trailing_text.strip():
+                        # "hey jarvis show me issues" -> process "show me issues"
+                        continue_conv = await self.handle_turn(
+                            pre_transcribed=result.trailing_text,
+                            play_chime=False)
+                    else:
+                        # Just "hey jarvis" -> listen for command
+                        continue_conv = await self.handle_turn(play_chime=False)
+
+                    # Follow-up loop (auto-listen, no Enter)
+                    while continue_conv and self._running:
+                        continue_conv = await self.handle_turn(play_chime=False)
+
+                else:
+                    # --- Legacy Enter-key mode ---
+                    self.state_manager.transition_to(AgentState.IDLE)
+
+                    print("\n[Press Enter to speak...]")
+                    await asyncio.get_event_loop().run_in_executor(None, input)
+
+                    if not self._running:
+                        break
+
+                    continue_conversation = True
+                    while continue_conversation and self._running:
+                        continue_conversation = await self.handle_turn(
+                            is_followup_answer=False)
 
             except KeyboardInterrupt:
                 print("\n\nInterrupted by user")
@@ -1045,8 +1165,12 @@ class Orchestrator:
 
     async def shutdown(self) -> None:
         """Clean up all resources"""
-        print("\nShutting down Kat...")
+        print("\nShutting down Jarvis...")
         self._running = False
+
+        # Stop wake word listener
+        if self.wake_listener:
+            self.wake_listener.stop()
 
         await self.tts.interrupt()
         await self.audio_output.interrupt()

@@ -1,5 +1,5 @@
 """
-LoRA Fine-Tuning for Kat Voice Assistant (Tier 2 Router)
+LoRA Fine-Tuning for Jarvis Voice Assistant (Tier 2 Router)
 
 Fine-tunes Qwen3-4B via MLX LoRA on personalized intent classification data.
 Trains the local LLM to better route Vasu's voice commands.
@@ -28,7 +28,7 @@ from typing import Optional, List, Dict, Any
 
 # Training data format for mlx_lm LoRA
 CHAT_TEMPLATE = """<|im_start|>system
-Intent classifier for Kat, a voice assistant for developer Vasu. Output ONLY a single-line JSON object.
+Intent classifier for Jarvis, a voice assistant for developer Vasu. Output ONLY a single-line JSON object.
 
 Intents: github.list_issues(repo,state), github.get_issue(repo,number), github.create_issue(repo,title,body), github.list_prs(repo,state), github.get_pr(repo,number), github.list_commits(repo,since), github.activity_yesterday(repo), github.activity_today(repo), github.activity_this_week(repo), github.repo_status(repo), slack.post_message(channel,message), slack.list_channels, slack.read_messages(channel), git.status, git.diff, git.branch, code.implement(needs_claude=true), code.fix_bug(needs_claude=true), code.review(needs_claude=true), code.explain(needs_claude=true), code.refactor(needs_claude=true), cli.run_tests, cli.run_build, workflow.daily_status(channel), workflow.pr_review(repo,number), workflow.sprint_planning(repo), meta.greeting, meta.thanks, meta.help, meta.cancel.
 
@@ -44,7 +44,7 @@ Unknown: {{"intent":"unknown","confidence":0.0,"params":{{}},"needs_claude":true
 {output}<|im_end|>"""
 
 
-def prepare_training_data(output_dir: str = "~/.kat/training") -> str:
+def prepare_training_data(output_dir: str = "~/.jarvis/training") -> str:
     """
     Prepare training data in mlx_lm LoRA format.
 
@@ -109,9 +109,9 @@ def _write_formatted(samples: List[Dict[str, Any]], output_path: str) -> None:
 
 
 def train_lora(
-    data_dir: str = "~/.kat/training",
+    data_dir: str = "~/.jarvis/training",
     model_name: str = "Qwen/Qwen3-4B-MLX-4bit",
-    adapter_dir: str = "~/.kat/adapters",
+    adapter_dir: str = "~/.jarvis/adapters",
     epochs: int = 3,
     batch_size: int = 1,
     learning_rate: float = 1e-5,
@@ -221,8 +221,8 @@ def train_lora(
 
 def merge_adapter(
     model_name: str = "Qwen/Qwen3-4B-MLX-4bit",
-    adapter_dir: str = "~/.kat/adapters",
-    output_dir: str = "~/.kat/merged_model",
+    adapter_dir: str = "~/.jarvis/adapters",
+    output_dir: str = "~/.jarvis/merged_model",
 ) -> str:
     """
     Merge LoRA adapter into the base model for faster inference.
@@ -259,7 +259,7 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(
-        description="LoRA fine-tuning for Kat voice assistant")
+        description="LoRA fine-tuning for Jarvis voice assistant")
     parser.add_argument("--prepare", action="store_true",
                         help="Prepare training data only")
     parser.add_argument("--train", action="store_true",
@@ -274,9 +274,9 @@ def main():
                         help="LoRA rank (default: 8)")
     parser.add_argument("--layers", type=int, default=16,
                         help="LoRA layers (default: 16)")
-    parser.add_argument("--data-dir", default="~/.kat/training",
+    parser.add_argument("--data-dir", default="~/.jarvis/training",
                         help="Training data directory")
-    parser.add_argument("--adapter-dir", default="~/.kat/adapters",
+    parser.add_argument("--adapter-dir", default="~/.jarvis/adapters",
                         help="Adapter output directory")
     parser.add_argument("--model", default="Qwen/Qwen3-4B-MLX-4bit",
                         help="Base model name")

@@ -34,22 +34,22 @@ class ExecutionResult:
 # Local responses that don't need any LLM or tool call
 LOCAL_RESPONSES = {
     'meta.greeting': [
-        "Hey! What can I help with?",
-        "Hi there! What do you need?",
-        "Hello! Ready to help.",
+        "Hey Vasu! What can I help with?",
+        "Hi Vasu! What do you need?",
+        "Hey! Ready to help.",
     ],
     'meta.thanks': [
-        "Anytime!",
+        "Anytime, Vasu!",
         "You're welcome!",
         "Happy to help!",
     ],
     'meta.help': [
-        "I can help with GitHub issues, PRs, commits, Slack messaging, "
+        "Sure Vasu! I can help with GitHub issues, PRs, commits, Slack messaging, "
         "git operations, code review, and more. Just ask!",
     ],
     'meta.cancel': [
         "Cancelled.",
-        "Alright, cancelled.",
+        "Alright Vasu, cancelled.",
     ],
 }
 
@@ -110,30 +110,15 @@ TOOL_PROMPTS = {
 }
 
 
-# Confirmation prompts for non-local intents
-# Returns a human-readable description of what Kat will do.
-# Intents not listed here (or with tool='local') skip confirmation.
+# Confirmation prompts for WRITE/MUTATING intents only.
+# Read-only intents (list, get, show, check) skip confirmation for speed.
+# This saves ~5s per interaction (TTS + listen + parse).
 CONFIRMATION_PROMPTS = {
-    'github.list_issues': "I'll check open issues on {owner}/{repo}. Go ahead?",
-    'github.get_issue': "I'll look up issue #{number} on {owner}/{repo}. Go ahead?",
+    # Write operations - always confirm
     'github.create_issue': "I'll create a new issue on {owner}/{repo}. Go ahead?",
-    'github.list_prs': "I'll check open pull requests on {owner}/{repo}. Go ahead?",
-    'github.get_pr': "I'll look up PR #{number} on {owner}/{repo}. Go ahead?",
-    'github.list_commits': "I'll check recent commits on {owner}/{repo}. Go ahead?",
-    'github.activity_yesterday': "I'll summarize yesterday's activity on {owner}/{repo}. Go ahead?",
-    'github.activity_today': "I'll summarize today's activity on {owner}/{repo}. Go ahead?",
-    'github.activity_this_week': "I'll summarize this week's activity on {owner}/{repo}. Go ahead?",
-    'github.repo_status': "I'll get the status of {owner}/{repo}. Go ahead?",
     'slack.post_message': "I'll post a message to {channel}. Go ahead?",
-    'slack.list_channels': "I'll list Slack channels. Go ahead?",
-    'slack.read_messages': "I'll read recent messages from {channel}. Go ahead?",
-    'git.status': "I'll check git status. Go ahead?",
-    'git.diff': "I'll show the current diff. Go ahead?",
-    'git.branch': "I'll check which branch you're on. Go ahead?",
     'code.implement': "I'll start implementing. Go ahead?",
     'code.fix_bug': "I'll work on fixing the bug. Go ahead?",
-    'code.review': "I'll review the code. Go ahead?",
-    'code.explain': "I'll explain the code. Go ahead?",
     'code.refactor': "I'll refactor the code. Go ahead?",
     'cli.run_tests': "I'll run the tests. Go ahead?",
     'cli.run_build': "I'll run the build. Go ahead?",
@@ -226,6 +211,11 @@ class DirectExecutor:
         if 'channel' not in params:
             params['channel'] = self.defaults.get('default_channel', '#general')
 
+        # Sanitize repo: Tier 2 LLM sometimes returns "owner/repo" instead of just "repo"
+        repo = params.get('repo', '')
+        if '/' in repo:
+            params['repo'] = repo.split('/')[-1]
+
         try:
             return template.format(**params)
         except KeyError:
@@ -303,6 +293,11 @@ class DirectExecutor:
             params['channel'] = self.defaults.get('default_channel', '#general')
         if 'number' not in params:
             params['number'] = '?'
+
+        # Sanitize repo: Tier 2 LLM sometimes returns "owner/repo" instead of just "repo"
+        repo = params.get('repo', '')
+        if '/' in repo:
+            params['repo'] = repo.split('/')[-1]
 
         try:
             return template.format(**params)

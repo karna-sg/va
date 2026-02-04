@@ -1,5 +1,5 @@
 """
-Seed Training Data for Kat Voice Assistant
+Seed Training Data for Jarvis Voice Assistant
 
 Personalized training samples for Vasu's development workflow:
 - GitHub (curiescious repo)
@@ -34,7 +34,7 @@ def get_seed_samples() -> List[Dict[str, Any]]:
     # GitHub Issues - curiescious repo
     # -------------------------------------------------------------------------
     github_issues = [
-        ("kat show me the open issues", "github.list_issues", {"repo": "curiescious", "state": "open"}),
+        ("jarvis show me the open issues", "github.list_issues", {"repo": "curiescious", "state": "open"}),
         ("what issues do we have on curiescious", "github.list_issues", {"repo": "curiescious", "state": "open"}),
         ("any open bugs on the repo", "github.list_issues", {"repo": "curiescious", "state": "open"}),
         ("list all issues", "github.list_issues", {"repo": "curiescious", "state": "open"}),
@@ -263,12 +263,12 @@ def get_seed_samples() -> List[Dict[str, Any]]:
     # Meta / Conversation
     # -------------------------------------------------------------------------
     meta_samples = [
-        ("hello kat", "meta.greeting", {}),
-        ("hey kat", "meta.greeting", {}),
+        ("hello jarvis", "meta.greeting", {}),
+        ("hey jarvis", "meta.greeting", {}),
         ("hi there", "meta.greeting", {}),
-        ("good morning kat", "meta.greeting", {}),
+        ("good morning jarvis", "meta.greeting", {}),
         ("good afternoon", "meta.greeting", {}),
-        ("thanks kat", "meta.thanks", {}),
+        ("thanks jarvis", "meta.thanks", {}),
         ("thank you", "meta.thanks", {}),
         ("awesome thanks", "meta.thanks", {}),
         ("great job thanks", "meta.thanks", {}),
@@ -327,7 +327,7 @@ def export_seed_jsonl(output_path: str = "training_seed.jsonl") -> int:
     with open(output_path, 'w') as f:
         for sample in samples:
             record = {
-                "instruction": "Classify this voice command for Kat (Vasu's assistant). Output JSON.",
+                "instruction": "Classify this voice command for Jarvis (Vasu's assistant). Output JSON.",
                 "input": sample["utterance"],
                 "output": json.dumps({
                     "intent": sample["intent"],

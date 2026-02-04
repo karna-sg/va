@@ -42,7 +42,7 @@ class Tier2Result:
 
 # Compact system prompt - minimizes token count while preserving intent coverage.
 # Uses shorthand notation: intent_name(param1,param2) and [needs_claude] markers.
-ROUTER_SYSTEM_PROMPT = """Intent classifier for Kat, a voice assistant for developer Vasu. Output ONLY a single-line JSON object.
+ROUTER_SYSTEM_PROMPT = """Intent classifier for Jarvis, a voice assistant for developer Vasu. Output ONLY a single-line JSON object.
 
 Intents: github.list_issues(repo,state), github.get_issue(repo,number), github.create_issue(repo,title,body), github.list_prs(repo,state), github.get_pr(repo,number)=show PR details, github.list_commits(repo,since), github.activity_yesterday(repo), github.activity_today(repo), github.activity_this_week(repo), github.repo_status(repo), slack.post_message(channel,message), slack.list_channels, slack.read_messages(channel), git.status, git.diff, git.branch, code.implement(needs_claude=true), code.fix_bug(needs_claude=true), code.review(needs_claude=true), code.explain(needs_claude=true), code.refactor(needs_claude=true), cli.run_tests, cli.run_build, workflow.daily_status(channel), workflow.pr_review(repo,number)=review/analyze a PR, workflow.sprint_planning(repo), meta.greeting, meta.thanks, meta.help, meta.cancel.
 
@@ -66,7 +66,7 @@ class LocalRouter:
     """
 
     def __init__(self, model_name: str = "Qwen/Qwen3-4B-MLX-4bit",
-                 adapter_path: Optional[str] = "~/.kat/adapters",
+                 adapter_path: Optional[str] = "~/.jarvis/adapters",
                  max_tokens: int = 96):
         self.model_name = model_name
         self.adapter_path = self._resolve_adapter(adapter_path)

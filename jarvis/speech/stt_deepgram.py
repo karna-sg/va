@@ -94,8 +94,8 @@ class DeepgramSTT:
         # Keyword boosting - bias Deepgram toward our vocabulary
         # Format: [(word, boost)] where boost is -10 to 10
         self.keywords = keywords or [
-            ("kat", 2.0),
-            ("hey kat", 2.0),
+            ("jarvis", 2.0),
+            ("hey jarvis", 2.0),
             ("curiescious", 2.0),
             ("vasu", 1.5),
         ]
@@ -103,11 +103,9 @@ class DeepgramSTT:
         # Server-side find-and-replace for known misheard patterns
         # Format: [(find, replace)]
         self.replacements = replacements or [
-            ("he get", "hey kat"),
-            ("heat cat", "hey kat"),
-            ("he cut", "hey kat"),
-            ("he kat", "hey kat"),
-            ("heycat", "hey kat"),
+            ("hey jarvas", "hey jarvis"),
+            ("hey jarves", "hey jarvis"),
+            ("hey jarvus", "hey jarvis"),
         ]
 
         # Audio recording settings
@@ -491,6 +489,108 @@ class DeepgramSTT:
         finally:
             self._is_listening = False
             self._close_mic()
+
+    async def transcribe_audio(self, audio_bytes: bytes) -> str:
+        """
+        Transcribe a pre-recorded audio clip via Deepgram REST API.
+
+        Used for wake word burst detection -- sends a short audio clip
+        and gets back the transcription. Separate from the persistent
+        WebSocket which stays reserved for full commands.
+
+        Args:
+            audio_bytes: Raw PCM audio (16-bit, 16kHz, mono)
+
+        Returns:
+            Transcribed text, or empty string on failure
+        """
+        try:
+            import aiohttp
+        except ImportError:
+            # Fall back to urllib if aiohttp not available
+            return await self._transcribe_audio_urllib(audio_bytes)
+
+        url = "https://api.deepgram.com/v1/listen"
+        params = {
+            "model": self.model,
+            "language": self.language,
+            "encoding": self.encoding,
+            "sample_rate": str(self.sample_rate),
+            "channels": str(self.channels),
+            "punctuate": "true",
+            "smart_format": "true",
+        }
+        # Add keyword boosting
+        keywords = []
+        for word, boost in self.keywords:
+            keywords.append("%s:%s" % (word, boost))
+        if keywords:
+            params["keywords"] = keywords
+
+        headers = {
+            "Authorization": "Token %s" % self.api_key,
+            "Content-Type": "application/octet-stream",
+        }
+
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    url, params=params, headers=headers, data=audio_bytes,
+                    timeout=aiohttp.ClientTimeout(total=5.0),
+                ) as resp:
+                    if resp.status != 200:
+                        return ""
+                    data = await resp.json()
+                    channels = data.get("results", {}).get("channels", [])
+                    if channels:
+                        alts = channels[0].get("alternatives", [])
+                        if alts:
+                            return alts[0].get("transcript", "")
+            return ""
+        except Exception as e:
+            print("  Deepgram REST error: %s" % e)
+            return ""
+
+    async def _transcribe_audio_urllib(self, audio_bytes: bytes) -> str:
+        """Fallback REST transcription using urllib (no aiohttp dependency)"""
+        import urllib.request
+        import urllib.parse
+
+        url = "https://api.deepgram.com/v1/listen"
+        params = urllib.parse.urlencode({
+            "model": self.model,
+            "language": self.language,
+            "encoding": self.encoding,
+            "sample_rate": str(self.sample_rate),
+            "channels": str(self.channels),
+            "punctuate": "true",
+            "smart_format": "true",
+        })
+        full_url = "%s?%s" % (url, params)
+
+        headers = {
+            "Authorization": "Token %s" % self.api_key,
+            "Content-Type": "application/octet-stream",
+        }
+
+        req = urllib.request.Request(full_url, data=audio_bytes, headers=headers)
+
+        try:
+            loop = asyncio.get_event_loop()
+            resp = await loop.run_in_executor(
+                None,
+                lambda: urllib.request.urlopen(req, timeout=5)
+            )
+            data = json.loads(resp.read().decode())
+            channels = data.get("results", {}).get("channels", [])
+            if channels:
+                alts = channels[0].get("alternatives", [])
+                if alts:
+                    return alts[0].get("transcript", "")
+            return ""
+        except Exception as e:
+            print("  Deepgram REST fallback error: %s" % e)
+            return ""
 
     async def stop(self):
         """Stop current transcription"""

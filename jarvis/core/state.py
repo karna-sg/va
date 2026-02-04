@@ -104,7 +104,7 @@ class StateManager:
 
     # Valid state transitions - flexible to handle various flows
     TRANSITIONS = {
-        AgentState.IDLE: [AgentState.IDLE, AgentState.LISTENING, AgentState.ROUTING, AgentState.PROCESSING_LLM, AgentState.ERROR],
+        AgentState.IDLE: [AgentState.IDLE, AgentState.LISTENING, AgentState.ROUTING, AgentState.PROCESSING_LLM, AgentState.WAITING_FOLLOWUP, AgentState.ERROR],
         AgentState.LISTENING: [AgentState.LISTENING, AgentState.PROCESSING_STT, AgentState.ROUTING, AgentState.PROCESSING_LLM, AgentState.SPEAKING, AgentState.IDLE, AgentState.ERROR],
         AgentState.PROCESSING_STT: [AgentState.ROUTING, AgentState.PROCESSING_LLM, AgentState.SPEAKING, AgentState.IDLE, AgentState.ERROR],
         AgentState.ROUTING: [AgentState.CONFIRMING, AgentState.PROCESSING_LLM, AgentState.EXECUTING_WORKFLOW, AgentState.SPEAKING, AgentState.IDLE, AgentState.ERROR],
@@ -112,12 +112,12 @@ class StateManager:
         AgentState.PROCESSING_LLM: [AgentState.SPEAKING, AgentState.EXECUTING_WORKFLOW, AgentState.LISTENING, AgentState.IDLE, AgentState.ERROR],
         AgentState.EXECUTING_WORKFLOW: [AgentState.SPEAKING, AgentState.PROCESSING_LLM, AgentState.IDLE, AgentState.ERROR],
         AgentState.SPEAKING: [AgentState.WAITING_FOLLOWUP, AgentState.LISTENING, AgentState.PROCESSING_LLM, AgentState.IDLE, AgentState.ERROR],
-        AgentState.WAITING_FOLLOWUP: [AgentState.LISTENING, AgentState.IDLE, AgentState.ERROR],
-        AgentState.ERROR: [AgentState.IDLE, AgentState.LISTENING],
+        AgentState.WAITING_FOLLOWUP: [AgentState.LISTENING, AgentState.DORMANT, AgentState.IDLE, AgentState.ERROR],
+        AgentState.ERROR: [AgentState.IDLE, AgentState.LISTENING, AgentState.DORMANT],
 
-        # Phase 2 transitions
-        AgentState.DORMANT: [AgentState.ACTIVATED, AgentState.ERROR],
-        AgentState.ACTIVATED: [AgentState.LISTENING, AgentState.DORMANT, AgentState.ERROR],
+        # Wake word transitions (always-on mode)
+        AgentState.DORMANT: [AgentState.ACTIVATED, AgentState.LISTENING, AgentState.IDLE, AgentState.ERROR],
+        AgentState.ACTIVATED: [AgentState.LISTENING, AgentState.SPEAKING, AgentState.DORMANT, AgentState.ERROR],
     }
 
     def __init__(self, initial_state: AgentState = AgentState.IDLE):

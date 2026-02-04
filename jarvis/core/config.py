@@ -44,7 +44,7 @@ class AudioConfig:
     tts_rate: int = 220  # Faster speech rate (was 210)
 
     # ElevenLabs TTS settings (streaming, low latency)
-    use_elevenlabs: bool = True  # Use ElevenLabs if API key available
+    use_elevenlabs: bool = False  # Disabled - free tier exhausted, using macOS TTS
     elevenlabs_voice: str = "sarah"  # Female, soft friendly voice
     elevenlabs_model: str = "eleven_turbo_v2_5"  # Fast model ~75ms latency
 
@@ -67,12 +67,24 @@ class STTConfig:
 
 @dataclass
 class WakeWordConfig:
-    """Wake word detection configuration (Phase 2)"""
-    enabled: bool = False  # Disabled for Phase 1
-    access_key: str = ""
-    keyword: str = "kat"
+    """Wake word detection configuration"""
+    enabled: bool = True  # Enabled -- uses VAD + Deepgram burst (no Picovoice needed)
+    wake_phrases: list = None  # Phrases to detect (default: hey jarvis, hi jarvis, etc.)
+    burst_duration: float = 2.0  # Seconds of audio to buffer before checking
     sensitivity: float = 0.5
+
+    # Legacy Picovoice fields (unused, kept for compatibility)
+    access_key: str = ""
+    keyword: str = "jarvis"
     model_path: Optional[str] = None
+
+    def __post_init__(self):
+        if self.wake_phrases is None:
+            self.wake_phrases = [
+                "hey jarvis", "hi jarvis", "hello jarvis",
+                "okay jarvis", "ok jarvis",
+                "jarvis",
+            ]
 
 
 @dataclass
@@ -98,7 +110,7 @@ class ClaudeConfig:
     use_model_routing: bool = True  # Enable automatic model selection
 
     # System prompt for voice agent context - CONVERSATIONAL DESIGN
-    system_prompt: str = """You are Kat, a friendly female voice assistant for a developer named Vasu. You speak out loud - keep it SHORT.
+    system_prompt: str = """You are Jarvis, a friendly female voice assistant for a developer named Vasu. You speak out loud - keep it SHORT.
 
 ## CRITICAL RULES (MUST FOLLOW)
 1. MAX 2 sentences. No exceptions.
@@ -122,7 +134,7 @@ RIGHT: "Issue 20 is about the product roadmap. Want me to read the description?"
 ## GITHUB
 - Use MCP tools for GitHub queries
 - Default repo: karna-sg/curiescious
-- "curious" = curiescious, "cat" = Kat
+- "curious" = curiescious
 
 ## PERSONALITY
 - Warm and casual: "Hey Vasu!", "Sure!", "Got it!", "Alright..."
@@ -149,8 +161,11 @@ class Config:
     debug: bool = False
     log_level: str = "INFO"
 
+    # User personalization
+    user_name: str = "Vasu"
+
     # Conversation settings
-    follow_up_timeout: float = 30.0  # longer timeout for complex tasks
+    follow_up_timeout: float = 8.0  # Shorter for Siri-like conversational flow
     max_conversation_turns: int = 50  # more turns for implementation tasks
 
     # Paths
@@ -248,9 +263,9 @@ class Config:
         if self.stt.model_name not in valid_models:
             issues.append(f"Unknown STT model: {self.stt.model_name}")
 
-        # Check wake word settings
-        if self.wake_word.enabled and not self.wake_word.access_key:
-            issues.append("Wake word enabled but no Picovoice access key")
+        # Check wake word settings (now uses VAD + Deepgram, no Picovoice needed)
+        if self.wake_word.enabled and not os.getenv("DEEPGRAM_API_KEY"):
+            issues.append("Wake word enabled but no DEEPGRAM_API_KEY set")
 
         return issues
 

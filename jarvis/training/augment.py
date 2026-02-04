@@ -1,5 +1,5 @@
 """
-Training Data Augmentation for Kat Voice Assistant
+Training Data Augmentation for Jarvis Voice Assistant
 
 Generates paraphrases and variations of seed training samples to expand
 the fine-tuning dataset. Uses rule-based augmentation (no LLM needed):
@@ -19,7 +19,7 @@ from typing import List, Dict, Any, Optional
 
 # Voice-realistic filler words and prefixes
 VOICE_PREFIXES = [
-    "", "hey kat ", "kat ", "hey ", "okay ",
+    "", "hey jarvis ", "jarvis ", "hey ", "okay ",
     "can you ", "could you ", "please ",
     "I need to ", "I want to ", "let's ",
 ]
@@ -165,7 +165,7 @@ def export_augmented_jsonl(samples: List[Dict[str, Any]],
     with open(output_path, 'w') as f:
         for sample in samples:
             record = {
-                "instruction": "Classify this voice command for Kat (Vasu's assistant). Output JSON.",
+                "instruction": "Classify this voice command for Jarvis (Vasu's assistant). Output JSON.",
                 "input": sample["utterance"],
                 "output": json.dumps({
                     "intent": sample["intent"],

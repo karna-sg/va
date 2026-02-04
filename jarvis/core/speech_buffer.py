@@ -188,16 +188,17 @@ class SpeechBuffer:
         return text.strip()
 
 
-def get_acknowledgment(query: str) -> str:
+def get_acknowledgment(query: str, user_name: str = "Vasu") -> str:
     """
     Get context-aware acknowledgment based on query type.
     Returns a SHORT phrase to speak immediately.
+    Uses user_name naturally (not every time).
     """
     query_lower = query.lower()
 
     # GitHub-related
     if any(w in query_lower for w in ['github', 'commit', 'summit', 'issue', 'pr', 'pull request', 'repo']):
-        return "Checking GitHub."
+        return "Checking GitHub, %s." % user_name
 
     # Time-based queries
     if any(w in query_lower for w in ['yesterday', 'today', 'recent', 'latest', 'last week']):
@@ -205,7 +206,7 @@ def get_acknowledgment(query: str) -> str:
 
     # Implementation requests
     if any(w in query_lower for w in ['implement', 'create', 'build', 'make', 'add', 'write']):
-        return "Working on it."
+        return "On it, %s." % user_name
 
     # Fix/debug requests
     if any(w in query_lower for w in ['fix', 'debug', 'solve', 'resolve']):
@@ -220,7 +221,7 @@ def get_acknowledgment(query: str) -> str:
         return "Getting that."
 
     # Default
-    return "Sure."
+    return "Sure, %s." % user_name
 
 
 # Test
@@ -231,7 +232,7 @@ if __name__ == "__main__":
         "show me open issues",
         "implement issue 5",
         "fix the bug in login",
-        "hello kat",
+        "hello jarvis",
     ]
 
     print("Testing acknowledgments:")

@@ -83,7 +83,7 @@ def benchmark(embedder):
         "git status",
         "implement issue 5",
         "review the code",
-        "hello kat",
+        "hello jarvis",
         "what can you do",
         "create a new issue for the login bug",
         "show PR 42",

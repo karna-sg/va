@@ -101,8 +101,8 @@ class StateManager:
 
     # Valid state transitions - more flexible to handle various flows
     TRANSITIONS = {
-        AgentState.IDLE: [AgentState.LISTENING, AgentState.PROCESSING_LLM, AgentState.ERROR],
-        AgentState.LISTENING: [AgentState.PROCESSING_STT, AgentState.IDLE, AgentState.ERROR],
+        AgentState.IDLE: [AgentState.IDLE, AgentState.LISTENING, AgentState.PROCESSING_LLM, AgentState.ERROR],
+        AgentState.LISTENING: [AgentState.LISTENING, AgentState.PROCESSING_STT, AgentState.PROCESSING_LLM, AgentState.SPEAKING, AgentState.IDLE, AgentState.ERROR],
         AgentState.PROCESSING_STT: [AgentState.PROCESSING_LLM, AgentState.SPEAKING, AgentState.IDLE, AgentState.ERROR],
         AgentState.PROCESSING_LLM: [AgentState.SPEAKING, AgentState.LISTENING, AgentState.IDLE, AgentState.ERROR],
         AgentState.SPEAKING: [AgentState.WAITING_FOLLOWUP, AgentState.LISTENING, AgentState.PROCESSING_LLM, AgentState.IDLE, AgentState.ERROR],

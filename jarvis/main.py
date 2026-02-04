@@ -26,6 +26,7 @@ from jarvis.audio.input import AudioInput
 from jarvis.audio.output import AudioOutput
 from jarvis.audio.vad import VoiceActivityDetector
 from jarvis.speech.stt import SpeechToText
+from jarvis.speech.stt_deepgram import DeepgramSTT, DeepgramSTTFallback, get_stt
 from jarvis.speech.corrections import correct_transcription
 from jarvis.speech.tts_elevenlabs import ElevenLabsTTS, ElevenLabsTTSFallback, get_tts
 from jarvis.llm.claude import ClaudeCode, PermissionMode
@@ -89,11 +90,31 @@ class JarvisAgent:
             max_silence_duration_ms=int(config.audio.silence_duration * 1000),
         )
 
+        # Initialize STT - prefer Deepgram streaming if API key available
+        self.deepgram_stt = None
+        self.use_deepgram = False
+        if config.stt.use_deepgram:
+            import os
+            if os.getenv("DEEPGRAM_API_KEY"):
+                try:
+                    self.deepgram_stt = DeepgramSTT(
+                        model=config.stt.deepgram_model,
+                        language=config.stt.deepgram_language,
+                        endpointing=config.stt.deepgram_endpointing,
+                    )
+                    self.use_deepgram = True
+                    print(f"  STT: Deepgram streaming ({config.stt.deepgram_model})")
+                except Exception as e:
+                    print(f"  Deepgram STT unavailable: {e}")
+
+        # Fallback: Whisper local model
         self.stt = SpeechToText(
             model_name=config.stt.model_name,
             models_dir=config.stt.models_dir,
             language=config.stt.language,
         )
+        if not self.use_deepgram:
+            print(f"  STT: Whisper local ({config.stt.model_name})")
 
         self.claude = ClaudeCode(
             permission_mode=PermissionMode.BYPASS,
@@ -104,6 +125,7 @@ class JarvisAgent:
             smart_model=config.claude.smart_model,
             use_model_routing=config.claude.use_model_routing,
         )
+        print(f"  LLM: Claude Code CLI")
 
         # State management
         self.state_manager = create_phase1_state_machine()
@@ -137,23 +159,26 @@ class JarvisAgent:
         # Test TTS
         print(f"  TTS voice: {self.config.audio.tts_voice} @ {self.config.audio.tts_rate} wpm")
 
-        # Load STT model (using faster tiny.en by default)
-        print(f"  Loading STT model: {self.config.stt.model_name} (optimized for speed)")
-        if not self.stt.load_model():
-            print("  Failed to load STT model!")
-            return False
-        print(f"  STT model loaded")
+        # Load STT model - skip if using Deepgram streaming
+        if self.use_deepgram:
+            print(f"  STT: Deepgram streaming ready (no local model needed)")
+        else:
+            print(f"  Loading Whisper STT model: {self.config.stt.model_name}")
+            if not self.stt.load_model():
+                print("  Failed to load STT model!")
+                return False
+            print(f"  STT model loaded")
 
         # Show model routing config
         print(f"  Model routing: {self.config.claude.fast_model} (fast) / {self.config.claude.smart_model} (smart)")
 
         # Quick Claude connection test (using fast model)
-        print("  Warming up Claude connection...")
+        print("  Warming up Claude Code CLI...")
         response = await self.claude.send("hi", new_conversation=True)
         if response.is_error:
             print(f"  Claude error: {response.text}")
             return False
-        print("  Claude Code ready")
+        print(f"  Claude Code ready ({response.duration_ms:.0f}ms)")
 
         print("\n✓ Jarvis initialized (optimized for speed)")
         return True
@@ -167,6 +192,68 @@ class JarvisAgent:
         await self.audio_output.play_listening_sound()
 
         print(prompt)
+
+        # Use Deepgram streaming STT if available (faster, transcribes as you speak)
+        if self.use_deepgram and self.deepgram_stt:
+            return await self._listen_with_deepgram()
+
+        # Fallback: Record then transcribe with Whisper
+        return await self._listen_with_whisper()
+
+    async def _listen_with_deepgram(self) -> str:
+        """Listen using Deepgram streaming STT (<300ms latency)"""
+        import time
+        start_time = time.time()
+
+        final_text = ""
+        interim_text = ""
+
+        try:
+            async for result in self.deepgram_stt.transcribe_stream(
+                timeout=self.config.audio.max_recording_duration
+            ):
+                # Update display with current text
+                current = result.text.strip()
+                if current and current != interim_text:
+                    interim_text = current
+                    prefix = "✓" if result.is_final else "🎤"
+                    print(f"\r{prefix} {interim_text}...          ", end="", flush=True)
+
+                # Keep updating final_text with finalized segments
+                if result.is_final:
+                    final_text = current
+
+                # Only stop when speech is truly done (endpoint detected)
+                if result.speech_final:
+                    final_text = current
+                    break
+
+        except Exception as e:
+            print(f"\nDeepgram error: {e}, falling back to Whisper")
+            return await self._listen_with_whisper()
+
+        elapsed = time.time() - start_time
+
+        if final_text:
+            # Apply transcription corrections
+            corrected = correct_transcription(final_text)
+
+            if self.config.debug:
+                print(f"\r📝 [{elapsed:.1f}s] Raw: {final_text}")
+                if corrected != final_text:
+                    print(f"📝 Corrected: {corrected}")
+            else:
+                print(f"\rYou said: {corrected}          ")  # Spaces to clear interim text
+
+            return corrected
+        else:
+            print("\rNo speech detected. Please try again.")
+            self.state_manager.transition_to(AgentState.IDLE)
+            return ""
+
+    async def _listen_with_whisper(self) -> str:
+        """Listen using Whisper local STT (fallback)"""
+        import time
 
         # Record until silence - waits for speech to START first
         record_start = time.time()
@@ -463,8 +550,8 @@ class JarvisAgent:
             if is_new:
                 self.state_manager.context.start()
 
-            # 4. Stream response and speak with smart buffering
-            speech_buffer = SpeechBuffer(min_words=6, max_words=25, timeout_seconds=2.0)
+            # 4. Stream response and speak with smart buffering (OPTIMIZED)
+            speech_buffer = SpeechBuffer(min_words=4, max_words=18, timeout_seconds=1.5)
             full_text = ""
             first_chunk = True
             max_spoken = 5  # Maximum phrases to speak
@@ -594,6 +681,11 @@ class JarvisAgent:
         # Clean up TTS
         if hasattr(self.tts, 'cleanup'):
             self.tts.cleanup()
+
+        # Clean up Deepgram STT
+        if self.deepgram_stt:
+            await self.deepgram_stt.stop()
+            self.deepgram_stt.cleanup()
 
         # Clean up audio input
         self.audio_input.cleanup()

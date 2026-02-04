@@ -12,5 +12,5 @@ websockets>=12.0
 # Utilities
 python-dotenv>=1.0.0
 
-# Future enhancements (Phase 3)
-# deepgram-sdk>=3.0.0
+# Deepgram streaming STT (enabled for low latency)
+deepgram-sdk>=3.0.0

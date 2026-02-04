@@ -12,10 +12,16 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
-# Try to load dotenv
+# Try to load dotenv from project root
 try:
     from dotenv import load_dotenv
-    load_dotenv()
+    # Load from project root (jarvis/core/config.py -> ../../.env)
+    _project_root = Path(__file__).parent.parent.parent
+    _env_file = _project_root / ".env"
+    if _env_file.exists():
+        load_dotenv(_env_file)
+    else:
+        load_dotenv()  # Fall back to cwd
 except ImportError:
     pass
 
@@ -28,29 +34,35 @@ class AudioConfig:
     chunk_size: int = 1024
     device_index: Optional[int] = None
 
-    # Recording settings - optimized for faster response
-    silence_threshold: float = 500.0
-    silence_duration: float = 1.0  # Reduced from 1.5s to 1.0s for faster detection
+    # Recording settings - OPTIMIZED for low latency
+    silence_threshold: float = 400.0  # More sensitive (was 500)
+    silence_duration: float = 0.7  # Faster end detection (was 1.0)
     max_recording_duration: float = 30.0  # seconds
 
     # TTS settings (macOS fallback)
     tts_voice: str = "Samantha"
-    tts_rate: int = 210  # Slightly faster speech rate
+    tts_rate: int = 220  # Faster speech rate (was 210)
 
     # ElevenLabs TTS settings (streaming, low latency)
     use_elevenlabs: bool = True  # Use ElevenLabs if API key available
-    elevenlabs_voice: str = "george"  # Warm British male voice
-    elevenlabs_model: str = "eleven_turbo_v2_5"  # Fast model ~250ms
+    elevenlabs_voice: str = "sarah"  # Female, soft friendly voice
+    elevenlabs_model: str = "eleven_turbo_v2_5"  # Fast model ~75ms latency
 
 
 @dataclass
 class STTConfig:
     """Speech-to-text configuration"""
-    model_name: str = "tiny.en"  # Changed to tiny.en for faster response
+    model_name: str = "tiny.en"  # Fallback model if Deepgram unavailable
     models_dir: Optional[str] = None
     language: str = "en"
     use_cli_fallback: bool = True
     # Model options: tiny.en (fastest), base.en (balanced), small.en (accurate)
+
+    # Deepgram streaming STT settings - ENABLED for <300ms latency
+    use_deepgram: bool = True  # ENABLED - much faster than Whisper
+    deepgram_model: str = "nova-2"  # Fast and accurate
+    deepgram_language: str = "en-US"
+    deepgram_endpointing: int = 600  # Reduced from 800ms for faster response
 
 
 @dataclass
@@ -67,7 +79,7 @@ class WakeWordConfig:
 class ClaudeConfig:
     """Claude Code configuration"""
     permission_mode: str = "bypassPermissions"
-    timeout: float = 300.0  # 5 minutes for complex tasks
+    timeout: float = 60.0  # Reduced from 300s - most voice queries are quick
     # Working directory MUST be set to a directory with .mcp.json for MCP tools
     working_directory: str = "/Users/karna/curiescious/curiescious"
 
@@ -80,47 +92,35 @@ class ClaudeConfig:
     # Default repositories to check
     default_repos: list = None
 
-    # Model routing settings
+    # Model routing settings (Claude Code CLI short names)
     fast_model: str = "haiku"  # For simple queries (faster, cheaper)
     smart_model: str = "sonnet"  # For complex tasks (tools, code)
     use_model_routing: bool = True  # Enable automatic model selection
 
     # System prompt for voice agent context - CONVERSATIONAL DESIGN
-    system_prompt: str = """You are Jarvis, a friendly voice assistant. Talk like a helpful friend, not a robot.
+    system_prompt: str = """You are Jarvis, a friendly female voice assistant. You speak out loud - keep it SHORT.
 
-## SPEAKING STYLE (CRITICAL)
-- MAX 2 sentences per response. Period.
-- NEVER list more than 3 items. Say "you have 20 issues" not list them all.
-- ALWAYS end with an offer: "Want me to go through them?" or "Need details?"
-- Use casual fillers: "So...", "Alright...", "Let's see...", "Okay so..."
-- Be warm: "Hey!", "Sure thing!", "Got it!", "No problem!"
+## CRITICAL RULES (MUST FOLLOW)
+1. MAX 2 sentences. No exceptions.
+2. NEVER list items. Just say totals: "You have 20 issues" NOT "Here are the issues: 1, 2, 3..."
+3. NO markdown, bullets, numbers, or formatting - this is SPOKEN not written.
+4. Always offer more: "Want details?" or "Should I pick one?"
 
-## EXAMPLES OF GOOD RESPONSES
-User: "What issues do we have?"
-BAD: "Here are all 20 issues: 1. Setup... 2. Library... 3. Notes..." (too long!)
-GOOD: "You've got 20 open issues. Top ones are setup, library, and notes. Want me to go through them?"
+## RESPONSE FORMAT
+WRONG: "Here are your 20 issues: #1 Setup, #2 Library, #3 Notes, #4..."
+RIGHT: "You've got 20 open issues. The top priorities are workspace setup and library management. Want me to pick one to start?"
 
-User: "What did we do yesterday?"
-BAD: "Here are the commits from yesterday: commit abc123..." (too detailed!)
-GOOD: "Looks like you worked on the sidebar and AI chat panel yesterday. Want the full breakdown?"
+WRONG: "Issue #20 is titled Product Roadmap with the following details..."
+RIGHT: "Issue 20 is about the product roadmap. Want me to read the description?"
 
-User: "Check PRs"
-GOOD: "No open PRs right now. Want me to check recent merged ones?"
-
-## GITHUB TOOLS
-You have MCP tools - USE THEM for any GitHub question:
-- Commits, PRs, issues -> use the tools, don't say "I don't have access"
+## GITHUB
+- Use MCP tools for GitHub queries
 - Default repo: karna-sg/curiescious
+- "curious" = curiescious, "jarrus" = Jarvis
 
-## SPEECH ERRORS (interpret intent)
-- "git hub" = GitHub, "curious" = curiescious, "jarrus" = Jarvis
-- "summit" = commit, "issue eighteen" = issue 18
-
-## NEVER DO
-- Never use markdown, code blocks, or bullet points
-- Never list more than 3 items
-- Never give long explanations
-- Never say "I don't have memory" - you have tools!"""
+## PERSONALITY
+- Warm and casual: "Hey!", "Sure!", "Got it!", "Alright..."
+- You're a helpful friend, not a robot reading documentation"""
 
     def __post_init__(self):
         if self.project_directories is None:

@@ -21,11 +21,13 @@ class SpeechBuffer:
     2. Colon followed by enough content
     3. Enough words accumulated (fallback)
     4. Timeout reached (emergency fallback)
+
+    OPTIMIZED for low latency - smaller chunks = faster first audio
     """
 
-    min_words: int = 8  # Minimum words before speaking
-    max_words: int = 30  # Force speak after this many words
-    timeout_seconds: float = 3.0  # Force speak after this delay
+    min_words: int = 4  # Reduced from 8 - speak sooner
+    max_words: int = 18  # Reduced from 30 - smaller chunks
+    timeout_seconds: float = 1.5  # Reduced from 3.0 - faster fallback
 
     _buffer: str = ""
     _last_add_time: float = field(default_factory=time.time)

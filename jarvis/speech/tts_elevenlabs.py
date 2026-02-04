@@ -17,12 +17,14 @@ import tempfile
 from typing import Optional, AsyncGenerator
 from dataclasses import dataclass
 
-# Check for required packages
-try:
-    import websockets
-    WEBSOCKETS_AVAILABLE = True
-except ImportError:
-    WEBSOCKETS_AVAILABLE = False
+# websockets will be imported lazily when needed
+
+# Force IPv4 for WebSocket connections (IPv6 routing issues on some networks)
+import socket
+_orig_getaddrinfo = socket.getaddrinfo
+def _getaddrinfo_ipv4(host, port, family=0, type=0, proto=0, flags=0):
+    return _orig_getaddrinfo(host, port, socket.AF_INET, type, proto, flags)
+socket.getaddrinfo = _getaddrinfo_ipv4
 
 try:
     import pyaudio
@@ -148,7 +150,10 @@ class ElevenLabsTTS:
         if not text or not text.strip():
             return True
 
-        if not WEBSOCKETS_AVAILABLE:
+        # Lazy import websockets
+        try:
+            import websockets
+        except ImportError:
             raise RuntimeError("websockets not installed. Run: pip install websockets")
 
         self._is_speaking = True
@@ -204,7 +209,10 @@ class ElevenLabsTTS:
             return not self._should_stop
 
         except Exception as e:
-            print(f"ElevenLabs TTS error: {e}")
+            # Ignore normal WebSocket close errors
+            err_str = str(e).lower()
+            if "close frame" not in err_str and "1000" not in err_str:
+                print(f"ElevenLabs TTS error: {e}")
             return False
 
         finally:
@@ -229,7 +237,10 @@ class ElevenLabsTTS:
         Returns:
             True if completed, False if interrupted
         """
-        if not WEBSOCKETS_AVAILABLE:
+        # Lazy import websockets
+        try:
+            import websockets
+        except ImportError:
             raise RuntimeError("websockets not installed. Run: pip install websockets")
 
         self._is_speaking = True

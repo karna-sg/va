@@ -30,6 +30,8 @@ intents:
       - "list all open issues"
       - "list out all open issues"
       - "show all issues"
+      - "hey kat show me the issues"
+      - "hey kat any open issues"
     params:
       repo: "${default_repo}"
       state: "open"
@@ -87,6 +89,7 @@ intents:
       - "pending pull requests"
       - "what PRs are open"
       - "check pull requests"
+      - "hey kat show me the PRs"
     params:
       repo: "${default_repo}"
       state: "open"
@@ -126,6 +129,7 @@ intents:
       - "what was committed"
       - "commit history"
       - "last few commits"
+      - "hey kat show me the commits"
     params:
       repo: "${default_repo}"
     tool: "github"
@@ -145,6 +149,7 @@ intents:
       - "summarize yesterday"
       - "what did we work on yesterday"
       - "what work was done yesterday"
+      - "hey kat what did we do yesterday"
     params:
       repo: "${default_repo}"
       since: "yesterday"

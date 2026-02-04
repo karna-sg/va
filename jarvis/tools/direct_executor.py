@@ -110,6 +110,47 @@ TOOL_PROMPTS = {
 }
 
 
+# Confirmation prompts for non-local intents
+# Returns a human-readable description of what Kat will do.
+# Intents not listed here (or with tool='local') skip confirmation.
+CONFIRMATION_PROMPTS = {
+    'github.list_issues': "I'll check open issues on {owner}/{repo}. Go ahead?",
+    'github.get_issue': "I'll look up issue #{number} on {owner}/{repo}. Go ahead?",
+    'github.create_issue': "I'll create a new issue on {owner}/{repo}. Go ahead?",
+    'github.list_prs': "I'll check open pull requests on {owner}/{repo}. Go ahead?",
+    'github.get_pr': "I'll look up PR #{number} on {owner}/{repo}. Go ahead?",
+    'github.list_commits': "I'll check recent commits on {owner}/{repo}. Go ahead?",
+    'github.activity_yesterday': "I'll summarize yesterday's activity on {owner}/{repo}. Go ahead?",
+    'github.activity_today': "I'll summarize today's activity on {owner}/{repo}. Go ahead?",
+    'github.activity_this_week': "I'll summarize this week's activity on {owner}/{repo}. Go ahead?",
+    'github.repo_status': "I'll get the status of {owner}/{repo}. Go ahead?",
+    'slack.post_message': "I'll post a message to {channel}. Go ahead?",
+    'slack.list_channels': "I'll list Slack channels. Go ahead?",
+    'slack.read_messages': "I'll read recent messages from {channel}. Go ahead?",
+    'git.status': "I'll check git status. Go ahead?",
+    'git.diff': "I'll show the current diff. Go ahead?",
+    'git.branch': "I'll check which branch you're on. Go ahead?",
+    'code.implement': "I'll start implementing. Go ahead?",
+    'code.fix_bug': "I'll work on fixing the bug. Go ahead?",
+    'code.review': "I'll review the code. Go ahead?",
+    'code.explain': "I'll explain the code. Go ahead?",
+    'code.refactor': "I'll refactor the code. Go ahead?",
+    'cli.run_tests': "I'll run the tests. Go ahead?",
+    'cli.run_build': "I'll run the build. Go ahead?",
+    'cli.run_command': "I'll run that command. Go ahead?",
+    'workflow.daily_status': "I'll generate and post the daily status. Go ahead?",
+    'workflow.pr_review': "I'll fetch and review the latest PR. Go ahead?",
+}
+
+# Words that mean "yes" (confirmation)
+YES_WORDS = {'yes', 'yeah', 'yep', 'yup', 'sure', 'go', 'go ahead', 'do it',
+             'proceed', 'okay', 'ok', 'affirmative', 'please', 'aye', 'right'}
+
+# Words that mean "no" (cancellation)
+NO_WORDS = {'no', 'nope', 'nah', 'cancel', 'stop', 'never mind', 'nevermind',
+            'forget it', 'abort', 'don\'t', 'negative', 'skip'}
+
+
 class DirectExecutor:
     """
     Executes matched intents with minimal latency.
@@ -234,6 +275,39 @@ class DirectExecutor:
                 duration_ms=(time.time() - start_time) * 1000,
                 source='claude_fast',
             )
+
+    def get_confirmation_prompt(self, routing: RoutingResult) -> Optional[str]:
+        """
+        Get a confirmation prompt for the given routing result.
+
+        Returns None for local intents (greeting, thanks, etc.) that
+        should execute instantly without confirmation.
+        """
+        # Local intents skip confirmation
+        if routing.tool == 'local' and routing.intent in LOCAL_RESPONSES:
+            return None
+
+        template = CONFIRMATION_PROMPTS.get(routing.intent)
+        if not template:
+            # Generic fallback for unknown intents
+            return "I'll handle that for you. Go ahead?"
+
+        # Resolve parameters into the template
+        params = dict(self.defaults)
+        params.update(routing.params)
+        if 'owner' not in params:
+            params['owner'] = self.defaults.get('default_owner', 'karna-sg')
+        if 'repo' not in params:
+            params['repo'] = self.defaults.get('default_repo', 'curiescious')
+        if 'channel' not in params:
+            params['channel'] = self.defaults.get('default_channel', '#general')
+        if 'number' not in params:
+            params['number'] = '?'
+
+        try:
+            return template.format(**params)
+        except KeyError:
+            return template  # Return unformatted if params missing
 
     def can_execute_locally(self, intent: str) -> bool:
         """Check if an intent can be executed without any LLM call"""

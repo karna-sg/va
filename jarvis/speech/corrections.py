@@ -28,15 +28,25 @@ WORD_CORRECTIONS = {
     "prs": "pull requests",
     "p r": "pull request",
 
-    # Assistant name
+    # Assistant name (bare name fixes)
     "jarrus": "kat",
     "jarvas": "kat",
     "jarves": "kat",
     "cat": "kat",
     "cot": "kat",
-    "hat": "kat",
-    "hey cat": "kat",
-    "hey kat": "kat",
+
+    # Greeting + name patterns (preserve the greeting for intent routing)
+    # Multi-word patterns must come before single-word "cat"->"kat" to match first
+    "hey cat": "hey kat",
+    "hi cat": "hi kat",
+    "hello cat": "hello kat",
+    "he get": "hey kat",
+    "heat cat": "hey kat",
+    "heat kat": "hey kat",
+    "he cut": "hey kat",
+    "he kat": "hey kat",
+    "heycat": "hey kat",
+    "thanks cat": "thanks kat",
 
     # Common commands
     "summit": "commit",

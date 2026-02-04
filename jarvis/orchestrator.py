@@ -30,7 +30,7 @@ from jarvis.core.config import Config
 from jarvis.core.speech_buffer import SpeechBuffer, get_acknowledgment
 from jarvis.core.conversation import ConversationManager
 from jarvis.tools.mcp_manager import MCPClientManager
-from jarvis.tools.direct_executor import DirectExecutor
+from jarvis.tools.direct_executor import DirectExecutor, YES_WORDS, NO_WORDS
 from jarvis.memory.short_term import ShortTermMemory
 from jarvis.memory.session_store import SessionStore
 from jarvis.memory.long_term import LongTermMemory
@@ -528,6 +528,15 @@ class Orchestrator:
                     else:
                         print("[T2: %s %.0f%%]" % (routing.intent, routing.confidence * 100))
 
+            # 3. Confirmation gate - ask before executing non-local intents
+            if routing and self.direct_executor:
+                confirm_prompt = self.direct_executor.get_confirmation_prompt(routing)
+                if confirm_prompt:
+                    confirmed = await self._confirm_action(confirm_prompt)
+                    if not confirmed:
+                        self.state_manager.transition_to(AgentState.IDLE)
+                        return await self.wait_for_followup()
+
             # 3a. Workflow intents - execute via workflow engine
             if routing and routing.intent.startswith('workflow.'):
                 return await self._handle_workflow(routing, user_input)
@@ -585,6 +594,47 @@ class Orchestrator:
             await asyncio.sleep(1)
             self.state_manager.transition_to(AgentState.IDLE, force=True)
             return False
+
+    async def _confirm_action(self, prompt: str) -> bool:
+        """
+        Ask the user to confirm an action before executing.
+
+        Speaks the confirmation prompt, listens for yes/no.
+        Returns True if confirmed, False if cancelled.
+        """
+        self.state_manager.transition_to(AgentState.CONFIRMING)
+
+        # Speak the confirmation prompt (short text, use fast TTS)
+        print("Kat: %s" % prompt)
+        await self.tts.speak_short(prompt)
+
+        # Listen for yes/no
+        answer = await self.listen_and_transcribe(prompt="Yes or no?")
+        if not answer:
+            print("No response. Cancelling.")
+            return False
+
+        # Parse the answer
+        answer_lower = answer.lower().strip().rstrip('.!?')
+
+        # Check for explicit yes/no
+        for word in YES_WORDS:
+            if word in answer_lower:
+                return True
+        for word in NO_WORDS:
+            if word in answer_lower:
+                print("Cancelled.")
+                await self.tts.speak_short("Cancelled.")
+                return False
+
+        # Ambiguous answer - default to yes if short, cancel if long/unclear
+        if len(answer_lower.split()) <= 2:
+            # Short answer, probably affirmative
+            return True
+
+        print("Didn't catch that. Cancelling to be safe.")
+        await self.tts.speak_short("Didn't catch that. Cancelling.")
+        return False
 
     async def _handle_direct_execution(self, routing, user_input: str) -> bool:
         """

@@ -218,6 +218,69 @@ class ElevenLabsTTS:
         finally:
             self._is_speaking = False
 
+    async def speak_short(self, text: str) -> bool:
+        """
+        Speak short text (confirmations, acks) with smaller chunk schedule.
+
+        Uses chunk_length_schedule [50, 80] instead of [120, 160, 250, 290]
+        so ElevenLabs starts generating audio ~50-100ms sooner for short phrases.
+        """
+        if not text or not text.strip():
+            return True
+
+        try:
+            import websockets
+        except ImportError:
+            raise RuntimeError("websockets not installed. Run: pip install websockets")
+
+        self._is_speaking = True
+        self._should_stop = False
+
+        try:
+            self._open_stream()
+
+            url = self.WEBSOCKET_URL.format(voice_id=self.voice_id)
+            url += f"?model_id={self.model_id}&output_format=pcm_22050"
+
+            async with websockets.connect(
+                url,
+                additional_headers={"xi-api-key": self.api_key}
+            ) as ws:
+                await ws.send(json.dumps({
+                    "text": " ",
+                    "voice_settings": {
+                        "stability": 0.5,
+                        "similarity_boost": 0.75,
+                    },
+                    "generation_config": {
+                        "chunk_length_schedule": [50, 80]
+                    }
+                }))
+
+                await ws.send(json.dumps({"text": text}))
+                await ws.send(json.dumps({"text": ""}))
+
+                async for message in ws:
+                    if self._should_stop:
+                        break
+                    data = json.loads(message)
+                    if "audio" in data and data["audio"]:
+                        audio_bytes = base64.b64decode(data["audio"])
+                        self._stream.write(audio_bytes)
+                    if data.get("isFinal"):
+                        break
+
+            return not self._should_stop
+
+        except Exception as e:
+            err_str = str(e).lower()
+            if "close frame" not in err_str and "1000" not in err_str:
+                print(f"ElevenLabs TTS error: {e}")
+            return False
+
+        finally:
+            self._is_speaking = False
+
     async def speak_streaming(
         self,
         text_generator: AsyncGenerator[str, None],
@@ -358,6 +421,10 @@ class ElevenLabsTTSFallback:
         finally:
             self._is_speaking = False
             self._process = None
+
+    async def speak_short(self, text: str) -> bool:
+        """Speak short text (same as speak for macOS fallback)"""
+        return await self.speak(text)
 
     async def interrupt(self):
         """Stop speaking"""

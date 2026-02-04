@@ -107,6 +107,24 @@ class FastRouter:
         self._is_ready = True
         return True
 
+    # Greeting prefixes to strip from compound utterances
+    GREETING_PREFIXES = [
+        'hey kat ', 'hi kat ', 'hello kat ',
+        'hey kat, ', 'hi kat, ', 'hello kat, ',
+        'kat ', 'kat, ',
+    ]
+
+    def _strip_greeting_prefix(self, utterance: str):
+        """Strip greeting prefix from compound utterances like 'hey kat show me issues'.
+        Returns (cleaned_utterance, had_greeting)."""
+        lower = utterance.lower()
+        for prefix in self.GREETING_PREFIXES:
+            if lower.startswith(prefix):
+                remainder = utterance[len(prefix):].strip()
+                if remainder:  # Only strip if there's content after the greeting
+                    return remainder, True
+        return utterance, False
+
     def route(self, utterance: str) -> Optional[RoutingResult]:
         """
         Route an utterance to an intent.
@@ -122,8 +140,21 @@ class FastRouter:
 
         threshold = self._settings.get('tier1_threshold', 0.78)
 
-        # Search for matching intent
-        match = self._embedder.get_best_match(utterance)
+        # Strip greeting prefix for compound utterances
+        # "hey kat show me the issues" -> search "show me the issues"
+        cleaned, had_greeting = self._strip_greeting_prefix(utterance)
+
+        # If utterance was ONLY a greeting (nothing left), use original
+        if had_greeting and not cleaned.strip():
+            cleaned = utterance
+
+        # Search with cleaned utterance first
+        match = self._embedder.get_best_match(cleaned)
+
+        # If no match with cleaned text, try original as fallback
+        if (not match or match.score < threshold) and cleaned != utterance:
+            match = self._embedder.get_best_match(utterance)
+
         if not match or match.score < threshold:
             return None
 

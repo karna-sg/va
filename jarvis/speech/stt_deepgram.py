@@ -75,6 +75,8 @@ class DeepgramSTT:
         interim_results: bool = True,
         endpointing: int = 300,  # ms of silence to detect end of speech
         vad_events: bool = True,
+        keywords: list = None,
+        replacements: list = None,
     ):
         self.api_key = api_key or os.getenv("DEEPGRAM_API_KEY")
         if not self.api_key:
@@ -88,6 +90,25 @@ class DeepgramSTT:
         self.interim_results = interim_results
         self.endpointing = endpointing
         self.vad_events = vad_events
+
+        # Keyword boosting - bias Deepgram toward our vocabulary
+        # Format: [(word, boost)] where boost is -10 to 10
+        self.keywords = keywords or [
+            ("kat", 2.0),
+            ("hey kat", 2.0),
+            ("curiescious", 2.0),
+            ("vasu", 1.5),
+        ]
+
+        # Server-side find-and-replace for known misheard patterns
+        # Format: [(find, replace)]
+        self.replacements = replacements or [
+            ("he get", "hey kat"),
+            ("heat cat", "hey kat"),
+            ("he cut", "hey kat"),
+            ("he kat", "hey kat"),
+            ("heycat", "hey kat"),
+        ]
 
         # Audio recording settings
         self.chunk_size = 1024
@@ -116,6 +137,18 @@ class DeepgramSTT:
             "punctuate=true",
             "smart_format=true",
         ]
+
+        # Keyword boosting - bias model toward our vocabulary
+        for word, boost in self.keywords:
+            params.append("keywords=%s:%s" % (
+                word.replace(" ", "%20"), boost))
+
+        # Server-side find-and-replace for known misheard patterns
+        for find, replace in self.replacements:
+            params.append("replace=%s:%s" % (
+                find.replace(" ", "%20"),
+                replace.replace(" ", "%20")))
+
         return "%s?%s" % (self.WEBSOCKET_URL, "&".join(params))
 
     def _init_audio(self):

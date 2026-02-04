@@ -24,6 +24,7 @@ class AgentState(Enum):
     PROCESSING_STT = auto() # Converting speech to text
     ROUTING = auto()        # Intent routing (Tier 1/2/3 decision)
     PROCESSING_LLM = auto() # Claude is thinking
+    CONFIRMING = auto()     # Waiting for user to confirm an action
     EXECUTING_WORKFLOW = auto()  # Running a multi-step workflow
     SPEAKING = auto()       # TTS is playing response
     WAITING_FOLLOWUP = auto()  # Waiting for potential follow-up
@@ -106,7 +107,8 @@ class StateManager:
         AgentState.IDLE: [AgentState.IDLE, AgentState.LISTENING, AgentState.ROUTING, AgentState.PROCESSING_LLM, AgentState.ERROR],
         AgentState.LISTENING: [AgentState.LISTENING, AgentState.PROCESSING_STT, AgentState.ROUTING, AgentState.PROCESSING_LLM, AgentState.SPEAKING, AgentState.IDLE, AgentState.ERROR],
         AgentState.PROCESSING_STT: [AgentState.ROUTING, AgentState.PROCESSING_LLM, AgentState.SPEAKING, AgentState.IDLE, AgentState.ERROR],
-        AgentState.ROUTING: [AgentState.PROCESSING_LLM, AgentState.EXECUTING_WORKFLOW, AgentState.SPEAKING, AgentState.IDLE, AgentState.ERROR],
+        AgentState.ROUTING: [AgentState.CONFIRMING, AgentState.PROCESSING_LLM, AgentState.EXECUTING_WORKFLOW, AgentState.SPEAKING, AgentState.IDLE, AgentState.ERROR],
+        AgentState.CONFIRMING: [AgentState.LISTENING, AgentState.PROCESSING_LLM, AgentState.EXECUTING_WORKFLOW, AgentState.SPEAKING, AgentState.IDLE, AgentState.ERROR],
         AgentState.PROCESSING_LLM: [AgentState.SPEAKING, AgentState.EXECUTING_WORKFLOW, AgentState.LISTENING, AgentState.IDLE, AgentState.ERROR],
         AgentState.EXECUTING_WORKFLOW: [AgentState.SPEAKING, AgentState.PROCESSING_LLM, AgentState.IDLE, AgentState.ERROR],
         AgentState.SPEAKING: [AgentState.WAITING_FOLLOWUP, AgentState.LISTENING, AgentState.PROCESSING_LLM, AgentState.IDLE, AgentState.ERROR],
